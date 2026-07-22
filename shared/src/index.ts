@@ -156,6 +156,8 @@ export interface QuizQuestion {
   correct_answer: string;
   given_answer?: string;
   is_correct?: boolean;
+  question_type?: 'mcq' | 'free_response';
+  explanation?: string; // shown after grading — why the correct answer is correct
 }
 
 export interface QuizSession {
@@ -269,9 +271,24 @@ export interface ServerToClientEvents {
     cause: StatusChangeCause;
     previous_status: Status;
   }) => void;
+  'node:created': (node: Node) => void;
   'edge:created': (edge: Edge) => void;
   'graph:snapshot': (payload: { nodes: Node[]; edges: Edge[] }) => void;
   'agent:thinking': (payload: { agent: AgentName; node_id: string; message: string }) => void;
+  'warroom:turn': (payload: {
+    session_id: string;
+    node_id: string;
+    persona: WarRoomPersona;
+    phase: 'start' | 'token' | 'done';
+    text: string;
+  }) => void;
+  'warroom:resolved': (payload: {
+    session_id: string;
+    node_id: string;
+    outcome: WarRoomOutcome;
+    node: Node;
+  }) => void;
+  'autopsy:progress': (payload: { message: string }) => void;
 }
 
 export interface ClientToServerEvents {

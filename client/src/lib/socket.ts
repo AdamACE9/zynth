@@ -72,6 +72,12 @@ export function useLiveGraph(initial: GraphPayloadLike | null): LiveGraph {
       setEdges((prev) => (prev.some((e) => e.id === edge.id) ? prev : [...prev, edge]));
     };
 
+    // A brand-new concept node discovered by Autopsy — append so it appears in
+    // the 3D graph immediately (the layout recomputes and it clusters into place).
+    const handleNodeCreated: ServerToClientEvents['node:created'] = (node) => {
+      setNodes((prev) => (prev.some((n) => n.id === node.id) ? prev : [...prev, node]));
+    };
+
     const handleSnapshot: ServerToClientEvents['graph:snapshot'] = (payload) => {
       setNodes(payload.nodes);
       setEdges(payload.edges);
@@ -83,6 +89,7 @@ export function useLiveGraph(initial: GraphPayloadLike | null): LiveGraph {
     s.on('node:updated', handleNodeUpdated);
     s.on('node:status_changed', handleStatusChanged);
     s.on('edge:created', handleEdgeCreated);
+    s.on('node:created', handleNodeCreated);
     s.on('graph:snapshot', handleSnapshot);
 
     return () => {
@@ -91,6 +98,7 @@ export function useLiveGraph(initial: GraphPayloadLike | null): LiveGraph {
       s.off('node:updated', handleNodeUpdated);
       s.off('node:status_changed', handleStatusChanged);
       s.off('edge:created', handleEdgeCreated);
+      s.off('node:created', handleNodeCreated);
       s.off('graph:snapshot', handleSnapshot);
     };
   }, []);

@@ -193,6 +193,27 @@ export const edgesRepo = {
   deleteAllForStudent(studentId: string): void {
     db.prepare('DELETE FROM edges WHERE student_id = ?').run(studentId);
   },
+
+  /**
+   * Looks for an existing edge of `relationshipType` connecting these two
+   * nodes in EITHER direction (source/target swapped counts as the same
+   * edge for idempotency purposes). Used by Autopsy to avoid inserting
+   * duplicate correlated_error edges on repeated runs.
+   */
+  findBetween(sourceId: string, targetId: string, relationshipType: RelationshipType): Edge | null {
+    const row = db
+      .prepare(
+        `SELECT * FROM edges
+         WHERE relationship_type = ?
+           AND (
+             (source_node_id = ? AND target_node_id = ?) OR
+             (source_node_id = ? AND target_node_id = ?)
+           )
+         LIMIT 1`,
+      )
+      .get(relationshipType, sourceId, targetId, targetId, sourceId) as EdgeRow | undefined;
+    return row ? rowToEdge(row) : null;
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -270,6 +291,12 @@ export const mistakeRecordsRepo = {
 
   getByNode(nodeId: string): MistakeRecord[] {
     return db.prepare('SELECT * FROM mistake_records WHERE node_id = ?').all(nodeId) as MistakeRecord[];
+  },
+
+  getByStudent(studentId: string): MistakeRecord[] {
+    return db
+      .prepare('SELECT * FROM mistake_records WHERE student_id = ? ORDER BY created_at')
+      .all(studentId) as MistakeRecord[];
   },
 };
 
@@ -411,6 +438,26 @@ export const explainSessionsRepo = {
       | ExplainSessionRow
       | undefined;
     return row ? rowToExplainSession(row) : undefined;
+  },
+
+  /** Most recent ExplainSession for this student+node, or null if none exists yet. */
+  getByNode(studentId: string, nodeId: string): ExplainSession | null {
+    const row = db
+      .prepare(
+        `SELECT * FROM explain_sessions
+         WHERE student_id = ? AND node_id = ?
+         ORDER BY created_at DESC
+         LIMIT 1`,
+      )
+      .get(studentId, nodeId) as ExplainSessionRow | undefined;
+    return row ? rowToExplainSession(row) : null;
+  },
+
+  update(id: string, patch: { messages: ExplainSession['messages'] }): void {
+    db.prepare('UPDATE explain_sessions SET messages = @messages WHERE id = @id').run({
+      id,
+      messages: JSON.stringify(patch.messages),
+    });
   },
 };
 

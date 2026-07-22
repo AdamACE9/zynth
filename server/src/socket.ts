@@ -14,6 +14,8 @@ import type {
   ServerToClientEvents,
   Status,
   StatusChangeCause,
+  WarRoomOutcome,
+  WarRoomPersona,
 } from '@zynth/shared';
 import { config, DEMO_STUDENT_ID } from './config';
 import { nodesRepo, edgesRepo } from './db/repositories';
@@ -70,4 +72,31 @@ export function emitAgentThinking(payload: { agent: AgentName; node_id: string; 
 
 export function emitGraphSnapshot(nodes: Node[], edges: Edge[]): void {
   guardedIo()?.emit('graph:snapshot', { nodes, edges });
+}
+
+export function emitNodeCreated(node: Node): void {
+  guardedIo()?.emit('node:created', node);
+}
+
+export function emitWarRoomTurn(payload: {
+  session_id: string;
+  node_id: string;
+  persona: WarRoomPersona;
+  phase: 'start' | 'token' | 'done';
+  text: string;
+}): void {
+  guardedIo()?.emit('warroom:turn', payload);
+}
+
+export function emitWarRoomResolved(payload: {
+  session_id: string;
+  node_id: string;
+  outcome: WarRoomOutcome;
+  node: Node;
+}): void {
+  guardedIo()?.emit('warroom:resolved', payload);
+}
+
+export function emitAutopsyProgress(payload: { message: string }): void {
+  guardedIo()?.emit('autopsy:progress', payload);
 }

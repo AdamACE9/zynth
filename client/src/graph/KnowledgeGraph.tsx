@@ -1,4 +1,5 @@
-import { Canvas } from '@react-three/fiber';
+import { useRef } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
 import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import type { Edge, Node } from '@zynth/shared';
@@ -12,6 +13,34 @@ interface KnowledgeGraphProps {
   edges: Edge[];
   selectedNodeId: string | null;
   onSelectNode: (id: string | null) => void;
+}
+
+const DOLLY_START_Z = 60;
+const DOLLY_REST_Z = 36;
+const DOLLY_DURATION = 1.8;
+
+/**
+ * One-shot camera dolly-in on mount: starts pulled back, eases into its
+ * resting distance over ~1.8s. Must run (and be declared) *before*
+ * <OrbitControls> in the tree — r3f fires useFrame subscriptions in
+ * registration order, so this repositions the camera first each frame and
+ * OrbitControls.update() picks up the new position as its base radius.
+ */
+function CameraDolly() {
+  const { camera } = useThree();
+  const elapsed = useRef(0);
+  const done = useRef(false);
+
+  useFrame((_state, delta) => {
+    if (done.current) return;
+    elapsed.current += delta;
+    const raw = Math.min(1, elapsed.current / DOLLY_DURATION);
+    const eased = 1 - (1 - raw) ** 3; // ease-out cubic
+    camera.position.z = DOLLY_START_Z + (DOLLY_REST_Z - DOLLY_START_Z) * eased;
+    if (raw >= 1) done.current = true;
+  });
+
+  return null;
 }
 
 /**
@@ -28,14 +57,16 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
       className="absolute inset-0"
       dpr={[1, 2]}
       gl={{ antialias: true, alpha: true }}
-      camera={{ position: [0, 12, 36], fov: 50, near: 0.1, far: 300 }}
+      camera={{ position: [0, 12, DOLLY_START_Z], fov: 43, near: 0.1, far: 300 }}
       onPointerMissed={() => onSelectNode(null)}
     >
       <fog attach="fog" args={['#05060f', 26, 78]} />
       <ambientLight intensity={0.4} color="#8fa8ff" />
       <pointLight position={[24, 22, 18]} intensity={40} color="#67e8f9" distance={120} decay={2} />
       <pointLight position={[-24, -12, -20]} intensity={35} color="#a78bfa" distance={120} decay={2} />
-      <Stars radius={110} depth={60} count={3500} factor={3.5} saturation={0} fade speed={0.4} />
+      <Stars radius={140} depth={80} count={2200} factor={2.2} saturation={0} fade speed={0.25} />
+
+      <CameraDolly />
 
       <Edges edges={edges} positions={positions} />
 
@@ -66,7 +97,7 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
       />
 
       <EffectComposer>
-        <Bloom luminanceThreshold={1} intensity={1.15} mipmapBlur luminanceSmoothing={0.4} />
+        <Bloom luminanceThreshold={0.75} intensity={0.9} mipmapBlur luminanceSmoothing={0.3} />
       </EffectComposer>
     </Canvas>
   );

@@ -7,15 +7,23 @@ import { KnowledgeGraph } from './graph/KnowledgeGraph';
 import { TopBar } from './ui/TopBar';
 import { Legend } from './ui/Legend';
 import { NodePanel } from './ui/NodePanel';
+import { WarRoom } from './screens/WarRoom';
+import { Quiz } from './screens/Quiz';
+import { Explain } from './screens/Explain';
+import { Autopsy } from './screens/Autopsy';
 
 interface GraphPayload {
   nodes: Node[];
   edges: Edge[];
 }
 
+/** Which full-screen overlay (if any) is mounted on top of the ever-present graph. */
+type ActiveScreen = { type: 'warroom' | 'quiz' | 'explain' | 'autopsy'; nodeId: string | null };
+
 export default function App() {
   const [initialGraph, setInitialGraph] = useState<GraphPayload | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,6 +53,15 @@ export default function App() {
 
   const { nodes, edges, connected, patchNode, replaceNode } = useLiveGraph(initialGraph);
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
+  const activeScreenNode = activeScreen?.nodeId ? nodes.find((n) => n.id === activeScreen.nodeId) ?? null : null;
+
+  function openScreen(type: ActiveScreen['type'], nodeId: string | null) {
+    setActiveScreen({ type, nodeId });
+  }
+
+  function closeScreen() {
+    setActiveScreen(null);
+  }
 
   return (
     <div className="relative h-full w-full">
@@ -54,7 +71,7 @@ export default function App() {
         selectedNodeId={selectedId}
         onSelectNode={setSelectedId}
       />
-      <TopBar connected={connected} />
+      <TopBar connected={connected} onOpenAutopsy={() => openScreen('autopsy', null)} />
       <Legend />
       <AnimatePresence>
         {selectedNode && (
@@ -64,8 +81,40 @@ export default function App() {
             onClose={() => setSelectedId(null)}
             patchNode={patchNode}
             replaceNode={replaceNode}
+            onOpenScreen={openScreen}
           />
         )}
+      </AnimatePresence>
+      {/* Full-screen overlays — the graph stays mounted behind them at all times. */}
+      <AnimatePresence>
+        {activeScreen?.type === 'warroom' && activeScreenNode && (
+          <WarRoom
+            key="warroom"
+            node={activeScreenNode}
+            onClose={closeScreen}
+            patchNode={patchNode}
+            replaceNode={replaceNode}
+          />
+        )}
+        {activeScreen?.type === 'quiz' && activeScreenNode && (
+          <Quiz
+            key="quiz"
+            node={activeScreenNode}
+            onClose={closeScreen}
+            patchNode={patchNode}
+            replaceNode={replaceNode}
+          />
+        )}
+        {activeScreen?.type === 'explain' && activeScreenNode && (
+          <Explain
+            key="explain"
+            node={activeScreenNode}
+            onClose={closeScreen}
+            patchNode={patchNode}
+            replaceNode={replaceNode}
+          />
+        )}
+        {activeScreen?.type === 'autopsy' && <Autopsy key="autopsy" onClose={closeScreen} />}
       </AnimatePresence>
     </div>
   );

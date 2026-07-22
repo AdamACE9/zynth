@@ -2,10 +2,14 @@ import { motion } from 'motion/react';
 
 interface TopBarProps {
   connected: boolean;
+  onOpenAutopsy: () => void;
 }
 
-/** Minimal, glassy chrome — the wordmark, tagline, and a small live/demo indicator. */
-export function TopBar({ connected }: TopBarProps) {
+/** Minimal, glassy chrome — the wordmark, tagline, live/demo indicator, and the Autopsy entry point. */
+export function TopBar({ connected, onOpenAutopsy }: TopBarProps) {
+  const statusColor = connected ? 'var(--status-green)' : 'var(--text-muted)';
+  const statusGlow = connected ? 'var(--status-green-glow)' : 'transparent';
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -12 }}
@@ -15,22 +19,33 @@ export function TopBar({ connected }: TopBarProps) {
     >
       <div className="pointer-events-auto">
         <div className="flex items-center gap-3">
-          <span className="font-display bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-400 bg-clip-text text-2xl font-bold tracking-tight text-transparent">
-            Zynth
-          </span>
+          <span className="text-wordmark">Zynth</span>
           <span
-            className="rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider"
-            style={
-              connected
-                ? { borderColor: 'rgba(40,224,160,0.35)', color: '#28e0a0' }
-                : { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.4)' }
-            }
+            className="glass-chip inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
+            style={{ color: statusColor }}
           >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{
+                backgroundColor: statusColor,
+                boxShadow: `0 0 8px ${statusGlow}, 0 0 2px ${statusGlow}`,
+              }}
+            />
             {connected ? 'Live' : 'Demo'}
           </span>
         </div>
-        <p className="mt-1 text-xs text-white/40">The truth about what you actually know.</p>
+        <p className="mt-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
+          The truth about what you actually know.
+        </p>
       </div>
+
+      <button
+        onClick={onOpenAutopsy}
+        className="glass-chip btn-chip pointer-events-auto flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium"
+      >
+        <span aria-hidden="true">🩻</span>
+        Autopsy
+      </button>
     </motion.div>
   );
 }
