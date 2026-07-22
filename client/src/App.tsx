@@ -27,6 +27,22 @@ export default function App() {
     };
   }, []);
 
+  // r3f's <Canvas> sizes itself via ResizeObserver. A few environments
+  // (headless preview panes, some embedded webviews) don't fire the *initial*
+  // observer callback, leaving the canvas stuck at its 300x150 default. Nudging
+  // a resize on mount forces react-use-measure's window-event fallback to run.
+  // Harmless in normal browsers (one extra measure); guarantees a sized canvas
+  // everywhere — including on demo day if the app is embedded/kiosked.
+  useEffect(() => {
+    const nudge = () => window.dispatchEvent(new Event('resize'));
+    const raf = requestAnimationFrame(nudge);
+    const t = setTimeout(nudge, 200);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(t);
+    };
+  }, []);
+
   const { nodes, edges, connected, patchNode, replaceNode } = useLiveGraph(initialGraph);
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
 
