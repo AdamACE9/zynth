@@ -12,10 +12,19 @@
  * hand-build them to be consistent because the rest of the app assumes it.
  */
 import { pathToFileURL } from 'node:url';
-import { computeMasteryScore, type Edge, type Node, type RelationshipType, type Status, type StatusHistoryEntry } from '@zynth/shared';
+import {
+  computeMasteryScore,
+  type Edge,
+  type ErrorType,
+  type MistakeRecord,
+  type Node,
+  type RelationshipType,
+  type Status,
+  type StatusHistoryEntry,
+} from '@zynth/shared';
 import { db, runMigrations } from './connection';
 import { DEMO_STUDENT_ID } from '../config';
-import { nodesRepo, edgesRepo, studentsRepo, agentConfigsRepo } from './repositories';
+import { nodesRepo, edgesRepo, studentsRepo, agentConfigsRepo, mistakeRecordsRepo } from './repositories';
 import { AGENT_CONFIGS } from '../agents/personas';
 
 function daysAgo(n: number): string {
@@ -177,6 +186,99 @@ const EDGE_SPECS: SeedEdgeSpec[] = [
   { source: 'node_derivatives', target: 'node_kinematics', type: 'related_topic', strength: 0.7 },
 ];
 
+// ---------------------------------------------------------------------------
+// mistake records — a DELIBERATE cross-concept thread for the Autopsy Board
+// demo: sign-flip / dropped-negative errors recurring across three otherwise
+// unrelated-looking Calculus nodes (Chain Rule, Implicit Differentiation,
+// Related Rates), mostly concept_gap, plus a couple of one-off mistakes for
+// variety so the clustering isn't trivially "everything is one cluster."
+// ---------------------------------------------------------------------------
+
+interface SeedMistakeSpec {
+  id: string;
+  nodeId: string;
+  excerpt: string;
+  errorType: ErrorType;
+  daysAgo: number;
+}
+
+const MISTAKE_SPECS: SeedMistakeSpec[] = [
+  // -- The sign-flip / dropped-negative thread (spans 3 nodes) --
+  {
+    id: 'mistake_seed_chain_01',
+    nodeId: 'node_chain_rule',
+    excerpt:
+      "Differentiated cos(3x) as -3sin(3x) but wrote the final answer as 3sin(3x), dropping the negative that comes from the chain rule's inner derivative.",
+    errorType: 'concept_gap',
+    daysAgo: 9,
+  },
+  {
+    id: 'mistake_seed_chain_02',
+    nodeId: 'node_chain_rule',
+    excerpt:
+      "For d/dx[e^(-x^2)], forgot the negative sign from the derivative of -x^2, writing 2x*e^(-x^2) instead of -2x*e^(-x^2).",
+    errorType: 'concept_gap',
+    daysAgo: 8,
+  },
+  {
+    id: 'mistake_seed_implicit_01',
+    nodeId: 'node_implicit_differentiation',
+    excerpt:
+      "Differentiating x^2 + y^2 = 25 implicitly, wrote dy/dx = x/y instead of dy/dx = -x/y — the sign flipped while isolating dy/dx.",
+    errorType: 'concept_gap',
+    daysAgo: 6,
+  },
+  {
+    id: 'mistake_seed_implicit_02',
+    nodeId: 'node_implicit_differentiation',
+    excerpt:
+      "While implicitly differentiating xy + y^2 = 7, dropped the negative when moving the x*(dy/dx) term across the equals sign.",
+    errorType: 'concept_gap',
+    daysAgo: 5,
+  },
+  {
+    id: 'mistake_seed_related_01',
+    nodeId: 'node_related_rates',
+    excerpt:
+      "In the ladder-sliding-down-a-wall problem, wrote dx/dt = (y/x)(dy/dt) without a negative, even though the ladder's height is decreasing so dy/dt should be negative.",
+    errorType: 'concept_gap',
+    daysAgo: 3,
+  },
+  {
+    id: 'mistake_seed_related_02',
+    nodeId: 'node_related_rates',
+    excerpt:
+      "For the shrinking-circle problem, set up dA/dt = 2*pi*r*(dr/dt) but plugged in a positive dr/dt even though the radius is decreasing — sign error carried through to the final rate.",
+    errorType: 'concept_gap',
+    daysAgo: 2,
+  },
+  // -- One-off variety, so clustering has to actually discriminate --
+  {
+    id: 'mistake_seed_chain_03',
+    nodeId: 'node_chain_rule',
+    excerpt:
+      "Correctly set up d/dx[(2x+1)^3] as 3(2x+1)^2 * 2 but then multiplied it out to 5(2x+1)^2 instead of 6(2x+1)^2 — an arithmetic slip, not a setup error.",
+    errorType: 'careless_slip',
+    daysAgo: 7,
+  },
+  {
+    id: 'mistake_seed_product_quotient_01',
+    nodeId: 'node_product_quotient_rule',
+    excerpt:
+      "Applied the quotient rule to x/(x+1) but swapped the numerator terms in the formula — doesn't yet have the quotient rule's structure memorized correctly.",
+    errorType: 'concept_gap',
+    daysAgo: 4,
+  },
+  {
+    id: 'mistake_seed_implicit_03',
+    nodeId: 'node_implicit_differentiation',
+    excerpt:
+      "Couldn't finish isolating dy/dx after implicit differentiation because factoring an expression with dy/dx in two terms wasn't solid — a prerequisite algebra gap, not the differentiation itself.",
+    errorType: 'prerequisite_gap',
+    daysAgo: 1,
+  },
+];
+
 function clearDemoStudentData(): void {
   const clearOrder = [
     'mistake_records',
@@ -225,13 +327,26 @@ export function seed(): void {
       };
       edgesRepo.insert(edge);
     }
+
+    for (const spec of MISTAKE_SPECS) {
+      const record: MistakeRecord = {
+        id: spec.id,
+        student_id: DEMO_STUDENT_ID,
+        node_id: spec.nodeId,
+        source: 'uploaded_homework',
+        raw_excerpt: spec.excerpt,
+        error_type: spec.errorType,
+        created_at: daysAgo(spec.daysAgo),
+      };
+      mistakeRecordsRepo.insert(record);
+    }
   });
   insertAll();
 
   // eslint-disable-next-line no-console
   console.log(
-    `[seed] Seeded ${NODE_SPECS.length} nodes and ${EDGE_SPECS.length} edges for ${DEMO_STUDENT_ID}, ` +
-      `${AGENT_CONFIGS.length} agent configs.`,
+    `[seed] Seeded ${NODE_SPECS.length} nodes, ${EDGE_SPECS.length} edges, and ${MISTAKE_SPECS.length} mistake ` +
+      `records for ${DEMO_STUDENT_ID}, ${AGENT_CONFIGS.length} agent configs.`,
   );
 }
 
