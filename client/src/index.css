@@ -1,0 +1,49 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  font-family:
+    'Inter',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  color: #e6e9f5;
+  -webkit-font-smoothing: antialiased;
+  /* Deep-space backdrop: near-black with a subtle indigo/cyan nebula wash. */
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 15%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 85% 80%, rgba(34, 211, 238, 0.12), transparent 60%),
+    radial-gradient(ellipse 100% 100% at 50% 50%, #0b0d1a 0%, #04050a 70%, #020207 100%);
+  background-color: #04050a;
+}
+
+#root {
+  position: relative;
+}
+
+* {
+  scrollbar-width: none;
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
+.font-display {
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
