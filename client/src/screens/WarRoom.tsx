@@ -69,6 +69,22 @@ const STATUS_LABEL: Record<Status, string> = {
   green: 'Proven',
 };
 
+/**
+ * Safety net: the personas are prompted to write plain text, but if the model
+ * ever slips in markdown we strip it so the chat never shows raw ** or ` `.
+ */
+function stripMarkdown(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*>\s+/gm, '')
+    .replace(/[*_`]{1,2}/g, '');
+}
+
 function emptySeats(): Record<WarRoomPersona, SeatState> {
   return {
     analogist: { phase: 'idle', text: '' },
@@ -341,7 +357,7 @@ export function WarRoom({ node, onClose, replaceNode }: WarRoomProps) {
                       </span>
                     </div>
                     <p className="mt-1.5 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                      {seat.text}
+                      {stripMarkdown(seat.text)}
                       {isActive && (
                         <motion.span
                           aria-hidden="true"

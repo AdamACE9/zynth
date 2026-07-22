@@ -51,37 +51,16 @@ function stubParagraph(persona: WarRoomPersona, node: Pick<Node, 'label' | 'subj
   const { label, subject } = node;
   switch (persona) {
     case 'analogist':
-      return (
-        `Think about "${label}" like a recipe in the kitchen: each step only works if it happens in the right ` +
-        `order. In ${subject}, this concept is the "crack the eggs before you fold them in" step — skip it or do it ` +
-        `out of sequence and everything downstream looks fine for a moment, then quietly falls apart.`
-      );
+      return `Ok so "${label}" is basically a recipe step — do it out of order and everything after it quietly breaks. 🍳`;
     case 'purist':
-      return (
-        `Let's be precise about "${label}". Formally, the defining property holds if and only if its stated ` +
-        `conditions are satisfied — nothing more, nothing less. In ${subject}, that means writing out the exact ` +
-        `statement and checking each condition against it directly, rather than trusting a mental picture that ` +
-        `might be quietly wrong.`
-      );
+      return `Cute, but analogies leak. For "${label}" you actually have to check the definition — does every condition really hold? That's the test.`;
     case 'real_world':
-      return (
-        `Here's where "${label}" actually shows up outside the classroom: it's the same mechanism people lean on ` +
-        `constantly in ${subject}-adjacent work, and it's exactly the kind of gap that causes real mistakes in later ` +
-        `units if it stays shaky now. This isn't abstract — it's load-bearing.`
-      );
+      return `And it's not busywork — "${label}" is exactly the step that bites people later in ${subject} if it's shaky now.`;
     case 'skeptic':
-      return (
-        `Hold on — the kitchen analogy and the formal definition both sound clean, but what happens at the edge ` +
-        `case for "${label}"? If the explanation survives a boundary condition or a degenerate input, it's solid. ` +
-        `If it quietly breaks there instead, we are not done yet — say so before the student walks away confident.`
-      );
+      return `Hang on — does that survive the weird edge case? Push "${label}" to a degenerate input. If it still holds, fine. If not, we're not done.`;
     case 'synthesis':
     default:
-      return (
-        `Pulling the analogy, the formal definition, the real-world grounding, and the skeptic's edge case ` +
-        `together: "${label}" comes down to one clean idea, and it holds up from every angle we just tested it ` +
-        `from — intuitive, rigorous, useful, and durable under scrutiny. That's the version worth carrying forward.`
-      );
+      return `Pulling it together: "${label}" is one clean idea — intuitive like the analogy, precise like the definition, and it held up to the skeptic. Keep that version.`;
   }
 }
 
@@ -116,19 +95,24 @@ async function streamLive(
     throw new Error('streamLive called without a Gemini client');
   }
   const personaCfg = findPersonaConfig(agent);
-  const priorContext = transcript.map((m) => `[${m.agent_persona}]: ${m.message}`).join('\n\n');
+  const priorContext = transcript.map((m) => `${m.agent_persona}: ${m.message}`).join('\n');
   const userPrompt = priorContext
-    ? `Concept: "${node.label}" (${node.subject}).\n\nWar Room so far:\n${priorContext}\n\nAdd your perspective — respond to what's already been said, don't repeat it.`
-    : `Concept: "${node.label}" (${node.subject}). Open the War Room debate with your perspective on how to explain this to a student who is stuck.`;
+    ? `You're in the Zynth War Room group chat about "${node.label}" (${node.subject}). A student is stuck on it.\n\nChat so far:\n${priorContext}\n\nText your reply. React to what someone just said (call them out by name), add ONE sharp beat, and pass it on. 1-2 short sentences, plain text.`
+    : `You're kicking off the Zynth War Room group chat about "${node.label}" (${node.subject}). A student is stuck on it. Drop your opening take — 1-2 short sentences, like a text message.`;
+
+  // The persona system prompts (personas.ts) describe each voice; this appended
+  // directive forces the *format*: short, conversational, no markdown — a group
+  // chat where the agents text each other, not five essays.
+  const systemInstruction = `${personaCfg.system_prompt}\n\n=== WAR ROOM CHAT FORMAT (overrides any length hints above) ===\nYou are texting in a fast group chat with the other agents (Analogist, Purist, Real-World, Skeptic, Synthesis). Rules:\n- 1-2 SHORT sentences. A text message, never a paragraph or a lecture.\n- Talk TO the others by name when you react ("the Analogist's kitchen thing works, but…", "fair point Skeptic —").\n- Plain conversational text ONLY. Absolutely no markdown: no **bold**, no *italics*, no #headings, no bullet/numbered lists, no code fences, no backticks.\n- Add one sharp, specific beat about "${node.label}" and stop. Don't restate the whole concept.`;
 
   const stream = await ai.models.generateContentStream({
     model: personaCfg.model,
     contents: userPrompt,
     config: {
-      systemInstruction: personaCfg.system_prompt,
+      systemInstruction,
       temperature: personaCfg.temperature,
       thinkingConfig: { thinkingBudget: 0 },
-      maxOutputTokens: 500,
+      maxOutputTokens: 160,
     },
   });
 
