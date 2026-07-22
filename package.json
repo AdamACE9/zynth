@@ -1,0 +1,25 @@
+{
+  "name": "zynth",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Zynth — a Student Learning OS built around one living 3D knowledge graph of mastery.",
+  "workspaces": [
+    "shared",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c cyan,magenta \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm run dev --workspace @zynth/server",
+    "dev:client": "npm run dev --workspace @zynth/client",
+    "build:shared": "npm run build --workspace @zynth/shared",
+    "seed": "npm run seed --workspace @zynth/server",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
