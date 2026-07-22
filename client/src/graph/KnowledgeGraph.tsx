@@ -60,11 +60,11 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
       camera={{ position: [0, 12, DOLLY_START_Z], fov: 43, near: 0.1, far: 300 }}
       onPointerMissed={() => onSelectNode(null)}
     >
-      <fog attach="fog" args={['#05060f', 26, 78]} />
-      <ambientLight intensity={0.4} color="#8fa8ff" />
-      <pointLight position={[24, 22, 18]} intensity={40} color="#67e8f9" distance={120} decay={2} />
-      <pointLight position={[-24, -12, -20]} intensity={35} color="#a78bfa" distance={120} decay={2} />
-      <Stars radius={140} depth={80} count={2200} factor={2.2} saturation={0} fade speed={0.25} />
+      <fog attach="fog" args={['#04050c', 46, 130]} />
+      <ambientLight intensity={0.32} color="#8fa8ff" />
+      <pointLight position={[24, 22, 18]} intensity={22} color="#67e8f9" distance={140} decay={2} />
+      <pointLight position={[-24, -12, -20]} intensity={18} color="#a78bfa" distance={140} decay={2} />
+      <Stars radius={150} depth={80} count={1600} factor={2.0} saturation={0} fade speed={0.22} />
 
       <CameraDolly />
 
@@ -97,7 +97,7 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
       />
 
       <EffectComposer>
-        <Bloom luminanceThreshold={0.75} intensity={0.9} mipmapBlur luminanceSmoothing={0.3} />
+        <Bloom luminanceThreshold={0.9} intensity={0.7} mipmapBlur luminanceSmoothing={0.2} radius={0.7} />
       </EffectComposer>
     </Canvas>
   );

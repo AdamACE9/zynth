@@ -48,10 +48,16 @@ function getHaloTexture(): THREE.Texture {
   return texture;
 }
 
-const IDLE_EMISSIVE = 1.6;
-const HOVER_EMISSIVE = 2.8;
-const SELECTED_EMISSIVE = 3.4;
+const IDLE_EMISSIVE = 2.3;
+const HOVER_EMISSIVE = 3.4;
+const SELECTED_EMISSIVE = 4.2;
 const FLASH_DURATION = 0.2; // seconds — single "case closed" spike, not a loop
+
+// Halo tuning — kept deliberately tight so 18 overlapping halos read as
+// individual glowing orbs, not one washed-out milky haze.
+const HALO_SCALE = 2.7;
+const HALO_OPACITY = 0.26;
+const HALO_PULSE_AMP = 0.05;
 
 /**
  * A single glowing concept node. Color comes from STATUS_COLORS[status];
@@ -120,10 +126,10 @@ export function NodeMesh({ node, position, isSelected, onSelect }: NodeMeshProps
     if (halo && haloMaterial) {
       haloMaterial.color.lerp(targetColor, Math.min(1, delta / 0.6));
       const haloHoverScale = isSelected ? 1.3 : hovered ? 1.15 : 1;
-      const haloTarget = baseRadius * 4.5 * pulse * haloHoverScale;
+      const haloTarget = baseRadius * HALO_SCALE * pulse * haloHoverScale;
       halo.scale.setScalar(THREE.MathUtils.lerp(halo.scale.x, haloTarget, Math.min(1, delta * 6)));
-      const opacityPulse = 0.42 + Math.sin(t * 1.4 + seedOffset) * 0.08;
-      const opacityTarget = flashing ? Math.min(0.75, opacityPulse * 1.4) : opacityPulse;
+      const opacityPulse = HALO_OPACITY + Math.sin(t * 1.4 + seedOffset) * HALO_PULSE_AMP;
+      const opacityTarget = flashing ? Math.min(0.5, opacityPulse * 1.5) : opacityPulse;
       haloMaterial.opacity = THREE.MathUtils.lerp(haloMaterial.opacity, opacityTarget, Math.min(1, delta * 6));
     }
 
@@ -143,7 +149,7 @@ export function NodeMesh({ node, position, isSelected, onSelect }: NodeMeshProps
             map={haloTexture}
             color={STATUS_COLORS[node.status]}
             transparent
-            opacity={0.42}
+            opacity={HALO_OPACITY}
             depthWrite={false}
             blending={THREE.AdditiveBlending}
             toneMapped={false}
@@ -173,8 +179,8 @@ export function NodeMesh({ node, position, isSelected, onSelect }: NodeMeshProps
           color={STATUS_COLORS[node.status]}
           emissive={STATUS_COLORS[node.status]}
           emissiveIntensity={IDLE_EMISSIVE}
-          roughness={0.25}
-          metalness={0.5}
+          roughness={0.4}
+          metalness={0.15}
           toneMapped={false}
         />
       </mesh>

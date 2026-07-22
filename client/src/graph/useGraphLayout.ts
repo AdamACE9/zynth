@@ -28,10 +28,12 @@ interface SimLink {
 /** Places each cluster's anchor evenly around a circle so constellations stay visually separate. */
 function computeClusterAnchors(clusters: string[]): PositionMap {
   const anchors: PositionMap = new Map();
-  const radius = Math.max(15, clusters.length * 8);
+  // Tighter spacing so the constellations frame together as one map with a
+  // visible link between them, rather than two clumps with a dead gap.
+  const radius = Math.max(11, clusters.length * 6);
   clusters.forEach((cluster, i) => {
     const angle = (i / clusters.length) * Math.PI * 2;
-    const y = i % 2 === 0 ? 1.5 : -1.5;
+    const y = i % 2 === 0 ? 2.5 : -2.5;
     anchors.set(cluster, [Math.cos(angle) * radius, y, Math.sin(angle) * radius]);
   });
   return anchors;

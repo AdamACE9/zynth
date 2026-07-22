@@ -24,9 +24,9 @@ interface EdgeStyle {
  * never reads as a node status color.
  */
 const EDGE_STYLE: Record<RelationshipType, EdgeStyle> = {
-  prerequisite: { color: '#67e8f9', opacity: 0.5, lineWidth: 1.3 },
-  related_topic: { color: '#9b7bff', opacity: 0.14, lineWidth: 0.8 },
-  correlated_error: { color: '#f59e0b', opacity: 0.4, lineWidth: 0.9, dashed: true },
+  prerequisite: { color: '#7becff', opacity: 0.7, lineWidth: 1.7 },
+  related_topic: { color: '#9b7bff', opacity: 0.32, lineWidth: 1.1 },
+  correlated_error: { color: '#f5a524', opacity: 0.6, lineWidth: 1.4, dashed: true },
 };
 
 interface EdgeLineProps {
