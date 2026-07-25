@@ -239,6 +239,100 @@ export interface PlanPath {
   created_at: ISOTimestamp;
 }
 
+// ---------------------------------------------------------------------------
+// Live Co-Pilot (Day 3) — watches a quiz in progress
+// ---------------------------------------------------------------------------
+
+/**
+ * One cell of the live mastery heatmap, recomputed after every answered
+ * question. Always updates — unlike insight cards, this is never suppressed.
+ */
+export interface CopilotHeatCell {
+  node_id: string;
+  label: string;
+  answered: number;
+  correct: number;
+  /** 0-100 live confidence estimate for this node within the session. */
+  confidence: number;
+  trend: 'rising' | 'falling' | 'flat';
+}
+
+/**
+ * An UNPROMPTED diagnosis pushed mid-quiz when a concept is visibly
+ * collapsing. Must explain *why*, not just report a wrong answer — and must
+ * clear the suppression rules before it is allowed to interrupt.
+ */
+export interface CopilotInsight {
+  id: string;
+  session_id: string;
+  node_id: string;
+  /** One line, e.g. "This isn't an arithmetic slip." */
+  headline: string;
+  /** The actual diagnosis of the misconception. */
+  diagnosis: string;
+  /** What the system saw — the student's own answers, quoted. */
+  evidence: string[];
+  error_type: ErrorType;
+  /** 0-1. Below the firing threshold we stay silent. */
+  confidence: number;
+  at: ISOTimestamp;
+}
+
+// ---------------------------------------------------------------------------
+// Study Plan / Ghost Path (Day 3)
+// ---------------------------------------------------------------------------
+
+export type GhostVerdict = 'ahead' | 'on_track' | 'behind';
+
+export interface PlanStep {
+  node_id: string;
+  label: string;
+  /** Position in the planned route. */
+  index: number;
+  status: Status;
+  /** Where the student actually is relative to the plan. */
+  state: 'done' | 'current' | 'upcoming';
+}
+
+/** Planned route vs. real mastery — the GPS-ETA comparison the Ghost Path draws. */
+export interface GhostPath {
+  plan_id: string;
+  goal: string;
+  steps: PlanStep[];
+  /** Index the plan expects the student to have reached by now. */
+  planned_position: number;
+  /** Index actually reached, derived from Node.status along the sequence. */
+  actual_position: number;
+  verdict: GhostVerdict;
+  /** Human-readable, e.g. "2 concepts behind schedule". */
+  summary: string;
+  last_replanned_at: ISOTimestamp | null;
+  replanned_because: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Mastery Streak (Day 3) — derived, no new schema
+// ---------------------------------------------------------------------------
+
+/**
+ * A node earns a flame when it has been RE-tested and stayed green throughout.
+ * Derived purely from status + retest_count + history: count trailing
+ * consecutive `quiz_passed` entries, stopping at any `quiz_failed`.
+ * Returns 0 when there is no streak (never retested, or it has dropped back).
+ */
+export function masteryStreak(node: Pick<Node, 'status' | 'retest_count' | 'history'>): number {
+  if (node.status !== 'green' || node.retest_count < 1) return 0;
+  let streak = 0;
+  for (let i = node.history.length - 1; i >= 0; i--) {
+    const entry = node.history[i];
+    if (!entry) break;
+    if (entry.cause === 'quiz_passed') streak++;
+    else if (entry.cause === 'quiz_failed') break;
+  }
+  // A single pass is just "proven" — a streak means it survived a retest.
+  return streak >= 2 ? streak : 0;
+}
+
 /** Persona definitions — configuration, not per-student data. */
 export type AgentName =
   | 'diagnosis'
@@ -275,6 +369,22 @@ export interface ServerToClientEvents {
   'edge:created': (edge: Edge) => void;
   'graph:snapshot': (payload: { nodes: Node[]; edges: Edge[] }) => void;
   'agent:thinking': (payload: { agent: AgentName; node_id: string; message: string }) => void;
+  /** Live Co-Pilot: the heatmap refreshes after every answered question. */
+  'copilot:heatmap': (payload: { session_id: string; cells: CopilotHeatCell[] }) => void;
+  /** Live Co-Pilot: an unprompted diagnosis. Fires rarely, by design. */
+  'copilot:insight': (payload: CopilotInsight) => void;
+  /** Study Plan re-planned itself because mastery changed (never manual). */
+  'plan:updated': (payload: { ghost: GhostPath; because: string }) => void;
+  /** Exam Simulator streaming its own reasoning, per question. */
+  'exam:reasoning': (payload: {
+    session_id: string;
+    question_id: string;
+    index: number;
+    total: number;
+    phase: 'thinking' | 'token' | 'graded';
+    text: string;
+    is_correct?: boolean;
+  }) => void;
   'warroom:turn': (payload: {
     session_id: string;
     node_id: string;

@@ -9,7 +9,10 @@ import { Server } from 'socket.io';
 import type {
   AgentName,
   ClientToServerEvents,
+  CopilotHeatCell,
+  CopilotInsight,
   Edge,
+  GhostPath,
   Node,
   ServerToClientEvents,
   Status,
@@ -99,4 +102,34 @@ export function emitWarRoomResolved(payload: {
 
 export function emitAutopsyProgress(payload: { message: string }): void {
   guardedIo()?.emit('autopsy:progress', payload);
+}
+
+// -- Day 3: Live Co-Pilot, Study Plan, Exam Simulator ------------------------
+
+/** Live mastery heatmap during a quiz. Always emitted, never suppressed. */
+export function emitCopilotHeatmap(payload: { session_id: string; cells: CopilotHeatCell[] }): void {
+  guardedIo()?.emit('copilot:heatmap', payload);
+}
+
+/** An unprompted diagnosis. Emitting this INTERRUPTS the student — fire rarely. */
+export function emitCopilotInsight(payload: CopilotInsight): void {
+  guardedIo()?.emit('copilot:insight', payload);
+}
+
+/** The study plan silently rerouted itself because mastery changed. */
+export function emitPlanUpdated(payload: { ghost: GhostPath; because: string }): void {
+  guardedIo()?.emit('plan:updated', payload);
+}
+
+/** Exam Simulator showing its own reasoning as it works. */
+export function emitExamReasoning(payload: {
+  session_id: string;
+  question_id: string;
+  index: number;
+  total: number;
+  phase: 'thinking' | 'token' | 'graded';
+  text: string;
+  is_correct?: boolean;
+}): void {
+  guardedIo()?.emit('exam:reasoning', payload);
 }
