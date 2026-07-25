@@ -23,13 +23,35 @@ const GROQ_ENDPOINT = 'https://api.groq.com/openai/v1/chat/completions';
 const GRADER_SYSTEM_PROMPT =
   'You are a strict but fair grader. Return ONLY JSON {"is_correct":bool,"feedback":string}.';
 
-function tokenize(text: string): Set<string> {
+/**
+ * Exported so other modules (Live Co-Pilot's copilotService.ts/copilotDiagnosis.ts,
+ * quizService.ts) can compute lexical overlap the exact same way the free-response
+ * grader does, rather than writing a second tokenizer. See `lexicalOverlap` below.
+ */
+export function tokenize(text: string): Set<string> {
   return new Set(
     text
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter((word) => word.length > 3), // skip tiny stopword-ish tokens
   );
+}
+
+/**
+ * lexicalOverlap(a, b) = |tokens(a) ∩ tokens(b)| / |tokens(b)| — i.e. "what
+ * fraction of b's meaningful words also appear in a". Asymmetric on purpose:
+ * callers pass the reference/target text as `b` so the ratio reads as
+ * "how much of the thing-we-care-about is covered by the-thing-we-have".
+ */
+export function lexicalOverlap(a: string, b: string): number {
+  const tb = tokenize(b);
+  if (tb.size === 0) return 0;
+  const ta = tokenize(a);
+  let intersection = 0;
+  for (const t of ta) {
+    if (tb.has(t)) intersection += 1;
+  }
+  return intersection / tb.size;
 }
 
 /**

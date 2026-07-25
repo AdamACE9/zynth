@@ -1067,7 +1067,55 @@
 }
 
 /* --------------------------------------------------------------------------
-   8. Motion preferences.
+   8. Exam Simulator — paper-length picker, live grading feed (amber accent).
+   -------------------------------------------------------------------------- */
+
+.es-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 22px;
+  border: 1px solid var(--border-glass);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.028);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease;
+}
+
+.es-chip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-glass-hover);
+  color: var(--text-primary);
+}
+
+.es-chip[data-selected='true'] {
+  background: rgba(255, 176, 32, 0.1);
+  border-color: var(--status-amber);
+  color: var(--text-primary);
+}
+
+.es-feed-row {
+  display: flex;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-glass);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.022);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.es-feed-row[data-active='true'] {
+  border-color: var(--status-amber);
+  box-shadow: 0 0 24px rgba(255, 176, 32, 0.12);
+}
+
+/* --------------------------------------------------------------------------
+   9. Motion preferences.
    -------------------------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {

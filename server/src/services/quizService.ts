@@ -37,6 +37,10 @@ const GENERATION_SCHEMA = {
         properties: {
           prompt: { type: 'string' },
           choices: { type: 'array', items: { type: 'string' } },
+          // Parallel to `choices`, same length, "" for the correct choice — see
+          // choice_tags on QuizQuestion in @zynth/shared. Optional: Live Co-Pilot
+          // degrades gracefully (loses its C1/S4 tag-matching signal) without it.
+          choice_tags: { type: 'array', items: { type: 'string' } },
           correct_answer: { type: 'string' },
           question_type: { type: 'string' },
           explanation: { type: 'string' },
@@ -51,6 +55,7 @@ const GENERATION_SCHEMA = {
 interface RawGeneratedQuestion {
   prompt?: unknown;
   choices?: unknown;
+  choice_tags?: unknown;
   correct_answer?: unknown;
   question_type?: unknown;
   explanation?: unknown;
@@ -147,6 +152,28 @@ function validateGeneratedQuestion(node: Node, raw: RawGeneratedQuestion): QuizQ
     }
   }
 
+  // choice_tags is OPTIONAL and must degrade gracefully: only kept when it's
+  // an array of the exact same length as choices, every entry a string (""
+  // allowed for the correct choice), and the tag on the correct choice's slot
+  // is empty. Anything else (wrong length, non-strings, missing) -> undefined,
+  // never a reason to drop the whole question.
+  let choiceTags: string[] | undefined;
+  if (questionType === 'mcq' && Array.isArray(raw.choice_tags)) {
+    const choices = raw.choices as string[];
+    const tags = raw.choice_tags;
+    const validShape =
+      tags.length === choices.length && tags.every((t) => typeof t === 'string');
+    if (validShape) {
+      const correctIdx = choices.indexOf(raw.correct_answer as string);
+      const normalized = (tags as string[]).map((t) => t.trim());
+      if (correctIdx === -1 || normalized[correctIdx] === '') {
+        choiceTags = normalized;
+      }
+      // else: model tagged the correct choice with a non-empty misconception
+      // tag, which is internally inconsistent — drop the tags, keep the question.
+    }
+  }
+
   return {
     id: `q_${nanoid(8)}`,
     node_id: node.id,
@@ -155,6 +182,7 @@ function validateGeneratedQuestion(node: Node, raw: RawGeneratedQuestion): QuizQ
     correct_answer: raw.correct_answer,
     question_type: questionType,
     explanation: isNonEmptyString(raw.explanation) ? raw.explanation : undefined,
+    choice_tags: choiceTags,
   };
 }
 
@@ -176,6 +204,7 @@ Generate exactly ${QUESTIONS_PER_NODE} questions testing understanding of this c
 - ${MCQ_PER_NODE} multiple-choice questions (question_type "mcq"), each with EXACTLY 4 short answer choices in "choices", where "correct_answer" is copied EXACTLY (character for character) from one of the 4 choices.
 - 1 free-response question (question_type "free_response"), where "correct_answer" is a concise model/reference answer usable as a grading rubric.
 Every question needs a short "explanation" of why the correct answer is correct.
+For every MCQ, also return "choice_tags": an array the SAME LENGTH as "choices", one short snake_case tag per choice naming the SPECIFIC misconception a student would hold to pick that wrong choice (e.g. "drops_negative_sign", "confuses_product_and_chain_rule"). Use "" for the correct choice's tag. If two different MCQ questions in this set have a wrong choice driven by the SAME underlying misconception, reuse the EXACT SAME tag string for both — this lets a downstream system detect that two separate wrong answers share one root cause rather than being unrelated slips. Do not tag trivial/careless-slip choices with a fake concept name; only tag choices that reflect a real, nameable misunderstanding.
 Do not reference these instructions in the output. Vary the wrong MCQ choices so none are trivially eliminable.`;
 
   try {
@@ -282,4 +311,81 @@ export async function gradeQuiz(questions: QuizQuestion[]): Promise<GradedQuiz> 
   const score = total > 0 ? Math.round((100 * correct) / total) : 0;
   const passed = score >= QUIZ_PASS_THRESHOLD;
   return { questions: graded, score, passed };
+}
+
+/**
+ * Grades exactly one question (question.given_answer must already be set).
+ * Exposed for the Live Co-Pilot's `POST /api/quiz/answer` — it needs the same
+ * MCQ-exact-match / Groq-free-response grading as bulk submit, but per-question
+ * and off the bulk-submit path. Thin wrapper over the same private
+ * `gradeQuestion` so there is exactly one grading implementation.
+ */
+export async function gradeSingleQuestion(question: QuizQuestion): Promise<QuizQuestion> {
+  return gradeQuestion(question);
+}
+
+// ---------------------------------------------------------------------------
+// Live Co-Pilot support: in-memory "what quiz is this session" registry +
+// mistake-excerpt formatting shared between /quiz/submit and copilotService.
+//
+// There is no DB table for an in-progress quiz (QuizSession is only written
+// at final submit — see db/schema.sql), and the Co-Pilot's fixed
+// `POST /api/quiz/answer` body (session_id, question_id, node_id, ...) never
+// carries the full question text/choices/correct_answer. So `/quiz/generate`
+// registers the exact question set it just generated here, keyed by the same
+// quiz_id it hands back to the client as `session_id` for every subsequent
+// `/quiz/answer` call. This is a deliberate, minimal adaptation of the spec's
+// literal request body — the alternative (stuffing full question payloads
+// into every answer POST) would be far more fragile. Purely in-memory and
+// process-lifetime — fine for the hackathon demo, not meant to survive a
+// server restart mid-quiz.
+// ---------------------------------------------------------------------------
+
+export interface RegisteredQuizSession {
+  session_id: string;
+  node_ids: string[];
+  questions: QuizQuestion[];
+  /** Cutoff for "predating the session" checks (MistakeRecord corroborators, P3). */
+  started_at: string;
+}
+
+const quizSessionRegistry = new Map<string, RegisteredQuizSession>();
+
+export function registerQuizSession(sessionId: string, nodeIds: string[], questions: QuizQuestion[]): RegisteredQuizSession {
+  const registered: RegisteredQuizSession = {
+    session_id: sessionId,
+    node_ids: nodeIds,
+    questions,
+    started_at: new Date().toISOString(),
+  };
+  quizSessionRegistry.set(sessionId, registered);
+  return registered;
+}
+
+export function getQuizSession(sessionId: string): RegisteredQuizSession | undefined {
+  return quizSessionRegistry.get(sessionId);
+}
+
+/**
+ * The tag of the choice the student actually picked, or undefined if the
+ * question isn't a tagged MCQ, has no given_answer, or the chosen choice's
+ * tag is empty/unset. Parallel-array lookup against `choices`/`choice_tags`.
+ */
+export function chosenChoiceTag(question: QuizQuestion): string | undefined {
+  if (!question.choices || !question.choice_tags || question.given_answer == null) return undefined;
+  const idx = question.choices.indexOf(question.given_answer);
+  if (idx < 0) return undefined;
+  const tag = question.choice_tags[idx];
+  return tag && tag.trim().length > 0 ? tag : undefined;
+}
+
+/**
+ * The canonical raw_excerpt format for a wrong-answer MistakeRecord, used by
+ * BOTH /quiz/submit (every wrong answer, at final grading) and copilotService
+ * (a live V2 careless_slip drop). Keeping the format in exactly one place is
+ * what lets P3's lexical-overlap matching find these records again later.
+ */
+export function buildMistakeExcerpt(question: QuizQuestion): string {
+  const tag = chosenChoiceTag(question) ?? '-';
+  return `Q: ${question.prompt} | Chose: ${question.given_answer ?? ''} | Correct: ${question.correct_answer} | Tag: ${tag}`;
 }

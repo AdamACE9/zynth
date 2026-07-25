@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import type { Node, QuizQuestion } from '@zynth/shared';
 import { QUIZ_PASS_THRESHOLD, STATUS_COLORS } from '@zynth/shared';
 import { generateQuiz, submitQuiz } from '../lib/api';
+import { CopilotPanel } from '../ui/CopilotPanel';
 import './rooms.css';
 
 export interface QuizProps {
@@ -53,6 +54,12 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
   const [gradedQuestions, setGradedQuestions] = useState<QuizQuestion[]>([]);
   const [confirmingClose, setConfirmingClose] = useState(false);
 
+  // Live Co-Pilot wiring — quiz_id doubles as the copilot session_id.
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const shownAtRef = useRef<Record<string, number>>({});
+  const revisionCountsRef = useRef<Record<string, number>>({});
+  const postedIdsRef = useRef<Set<string>>(new Set());
+
   useEffect(() => {
     if (phase !== 'loading') return;
     const timer = setInterval(() => {
@@ -65,10 +72,14 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
     setPhase('loading');
     setError(null);
     try {
-      const { questions: qs } = await generateQuiz([node.id]);
+      const { quiz_id, questions: qs } = await generateQuiz([node.id]);
       setQuestions(qs);
       setAnswers({});
       setCurrentIndex(0);
+      shownAtRef.current = {};
+      revisionCountsRef.current = {};
+      postedIdsRef.current = new Set();
+      setSessionId(quiz_id);
       setPhase('answering');
     } catch (err) {
       console.warn('[Zynth] quiz generation failed:', err);
@@ -82,6 +93,15 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
+  // Live Co-Pilot: stamp the moment each question first becomes current
+  // (once per question) — used to compute latency_ms when it's committed.
+  useEffect(() => {
+    const q = questions[currentIndex];
+    if (q && shownAtRef.current[q.id] === undefined) {
+      shownAtRef.current[q.id] = Date.now();
+    }
+  }, [currentIndex, questions]);
+
   const answeredIds = useMemo(
     () => new Set(questions.filter((q) => (answers[q.id] ?? '').trim().length > 0).map((q) => q.id)),
     [questions, answers],
@@ -93,10 +113,54 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
 
   function setAnswer(questionId: string, value: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
+    revisionCountsRef.current[questionId] = (revisionCountsRef.current[questionId] ?? 0) + 1;
+  }
+
+  /**
+   * Live Co-Pilot: posts the "first commit" of one question's answer to
+   * POST /api/quiz/answer — fired exactly once per question (guarded by
+   * postedIdsRef), the first time the student moves off it (or hits Submit
+   * while viewing it). Fire-and-forget: never blocks quiz navigation, and a
+   * network failure here must never break the quiz itself — the bulk
+   * /quiz/submit grading path is completely independent of this.
+   */
+  function commitAnswer(questionId: string) {
+    if (!sessionId || postedIdsRef.current.has(questionId)) return;
+    const value = (answers[questionId] ?? '').trim();
+    if (value.length === 0) return;
+    const question = questions.find((q) => q.id === questionId);
+    if (!question) return;
+    postedIdsRef.current.add(questionId);
+
+    const sessionIndex = questions.findIndex((q) => q.id === questionId);
+    const nodeQuestions = questions.filter((q) => q.node_id === question.node_id);
+    const nodeIndex = nodeQuestions.findIndex((q) => q.id === questionId);
+    const shownAt = shownAtRef.current[questionId];
+    const latencyMs = shownAt !== undefined ? Date.now() - shownAt : undefined;
+    const revisionCount = Math.max(0, (revisionCountsRef.current[questionId] ?? 1) - 1);
+
+    fetch('/api/quiz/answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId,
+        question_id: questionId,
+        node_id: question.node_id,
+        question_type: question.question_type ?? 'mcq',
+        session_index: sessionIndex,
+        node_index: nodeIndex,
+        given_answer: answers[questionId] ?? '',
+        latency_ms: latencyMs,
+        revision_count: revisionCount,
+      }),
+    }).catch((err) => {
+      console.warn('[Zynth] Live Co-Pilot answer post failed (quiz itself is unaffected):', err);
+    });
   }
 
   function goTo(index: number) {
     if (index < 0 || index >= questions.length) return;
+    if (currentQuestion) commitAnswer(currentQuestion.id);
     setCurrentIndex(index);
   }
 
@@ -111,6 +175,9 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
 
   async function handleSubmit() {
     if (!allAnswered) return;
+    // The question currently in view was never "navigated away from", so it
+    // was never committed to the Live Co-Pilot — commit it now, before grading.
+    if (currentQuestion) commitAnswer(currentQuestion.id);
     setPhase('submitting');
     try {
       const payload: QuizQuestion[] = questions.map((q) => ({ ...q, given_answer: answers[q.id] ?? '' }));
@@ -221,6 +288,9 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
       <div className="qz-progress" aria-hidden="true">
         <div className="qz-progress-fill" style={{ width: `${progressPct}%` }} />
       </div>
+
+      {/* Live Co-Pilot: floating heatmap + (rare) insight card. Answering-only. */}
+      {answering && <CopilotPanel sessionId={sessionId} />}
 
       {/* ---- Header --------------------------------------------------------- */}
       <header className="rm-rule-b flex-shrink-0">
