@@ -19,9 +19,11 @@
   --border-inner-highlight: rgba(255, 255, 255, 0.07);
 
   /* -- Text ----------------------------------------------------------------*/
-  --text-primary: #eef1fb;
-  --text-secondary: rgba(238, 241, 251, 0.64);
-  --text-muted: rgba(238, 241, 251, 0.40);
+  /* Contrast raised deliberately: at 0.64/0.40 over the vignette + grain, body
+     copy read as flat grey on every surface. These are the floor for legibility. */
+  --text-primary: #f4f6ff;
+  --text-secondary: rgba(240, 243, 253, 0.80);
+  --text-muted: rgba(240, 243, 253, 0.58);
 
   /* -- Status (hues match shared STATUS_COLORS) -----------------------------*/
   --status-red: #ff3b5c;
@@ -91,15 +93,26 @@ body::before {
   position: relative;
 }
 
-/* Vignette: frames the hero shot, sits above the canvas but below the
-   glass chrome (which uses z-10/z-20). */
+/* Vignette: frames the 3D hero shot, sits above the canvas but below the
+   glass chrome (which uses z-10/z-20). It exists for the graph ONLY — over a
+   long scrolling page it just greys the whole thing out, so it's disabled on
+   the marketing site (App.tsx sets body[data-view]). */
 #root::after {
   content: '';
   position: fixed;
   inset: 0;
   z-index: 5;
   pointer-events: none;
-  background: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 55%, rgba(2, 2, 6, 0.55) 100%);
+  background: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 55%, rgba(2, 2, 6, 0.5) 100%);
+}
+
+body[data-view='landing']::before {
+  opacity: 0.02;
+}
+
+body[data-view='landing'] #root::after,
+body[data-view='onboarding'] #root::after {
+  display: none;
 }
 
 * {

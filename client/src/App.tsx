@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import type { Edge, Node } from '@zynth/shared';
 import { fetchGraph } from './lib/api';
 import { useLiveGraph } from './lib/socket';
+import { useAppView } from './lib/appView';
 import { KnowledgeGraph } from './graph/KnowledgeGraph';
 import { TopBar } from './ui/TopBar';
 import { Legend } from './ui/Legend';
@@ -11,6 +12,8 @@ import { WarRoom } from './screens/WarRoom';
 import { Quiz } from './screens/Quiz';
 import { Explain } from './screens/Explain';
 import { Autopsy } from './screens/Autopsy';
+import { Landing } from './site/Landing';
+import { Onboarding } from './onboarding/Onboarding';
 
 interface GraphPayload {
   nodes: Node[];
@@ -20,27 +23,18 @@ interface GraphPayload {
 /** Which full-screen overlay (if any) is mounted on top of the ever-present graph. */
 type ActiveScreen = { type: 'warroom' | 'quiz' | 'explain' | 'autopsy'; nodeId: string | null };
 
+/**
+ * Top-level surface router. Zynth needs NO LOGIN, so the whole model is:
+ * public site -> (first-run) onboarding -> the graph app. See lib/appView.ts.
+ */
 export default function App() {
-  const [initialGraph, setInitialGraph] = useState<GraphPayload | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [activeScreen, setActiveScreen] = useState<ActiveScreen | null>(null);
+  const { view, enterApp, startOnboarding, completeOnboarding, skipOnboarding, goLanding } = useAppView();
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchGraph().then((graph) => {
-      if (!cancelled) setInitialGraph(graph);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // r3f's <Canvas> sizes itself via ResizeObserver. A few environments
-  // (headless preview panes, some embedded webviews) don't fire the *initial*
+  // The r3f <Canvas> sizes itself via ResizeObserver. A few environments
+  // (headless preview panes, embedded/kiosk webviews) don't fire the *initial*
   // observer callback, leaving the canvas stuck at its 300x150 default. Nudging
-  // a resize on mount forces react-use-measure's window-event fallback to run.
-  // Harmless in normal browsers (one extra measure); guarantees a sized canvas
-  // everywhere — including on demo day if the app is embedded/kiosked.
+  // a resize forces react-use-measure's window-event fallback to run. Harmless
+  // in normal browsers; re-run on view change since the graph mounts late.
   useEffect(() => {
     const nudge = () => window.dispatchEvent(new Event('resize'));
     const raf = requestAnimationFrame(nudge);
@@ -49,7 +43,93 @@ export default function App() {
       cancelAnimationFrame(raf);
       clearTimeout(t);
     };
+  }, [view]);
+
+  // The full-viewport vignette + heavy grain exist to frame the 3D graph; over
+  // a long scrolling page they just wash everything grey. index.css keys off this.
+  useEffect(() => {
+    document.body.dataset.view = view;
+  }, [view]);
+
+  return (
+    <AnimatePresence mode="wait">
+      {view === 'landing' && (
+        <motion.div
+          key="landing"
+          className="h-full w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.25 } }}
+        >
+          <Landing onEnter={enterApp} onStartTour={startOnboarding} />
+        </motion.div>
+      )}
+
+      {view === 'onboarding' && (
+        <motion.div
+          key="onboarding"
+          className="h-full w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: 0.25 } }}
+        >
+          <Onboarding onComplete={completeOnboarding} onSkip={skipOnboarding} onBackToSite={goLanding} />
+        </motion.div>
+      )}
+
+      {view === 'graph' && (
+        <motion.div
+          key="graph"
+          className="h-full w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: { duration: 0.4 } }}
+          exit={{ opacity: 0, transition: { duration: 0.2 } }}
+        >
+          <GraphApp />
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+const HINT_KEY = 'zynth.graphHintSeen.v1';
+
+/** The product itself: the living 3D knowledge graph plus its full-screen rooms. */
+function GraphApp() {
+  const [initialGraph, setInitialGraph] = useState<GraphPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeScreen, setActiveScreen] = useState<ActiveScreen | null>(null);
+  const [hintDismissed, setHintDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(HINT_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchGraph()
+      .then((graph) => {
+        if (!cancelled) setInitialGraph(graph);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  function dismissHint() {
+    setHintDismissed(true);
+    try {
+      localStorage.setItem(HINT_KEY, '1');
+    } catch {
+      /* storage disabled — the hint just reappears next session */
+    }
+  }
 
   const { nodes, edges, connected, patchNode, replaceNode } = useLiveGraph(initialGraph);
   const selectedNode = nodes.find((n) => n.id === selectedId) ?? null;
@@ -63,16 +143,97 @@ export default function App() {
     setActiveScreen(null);
   }
 
+  // Esc closes whatever is on top: a room first, then the node panel.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (activeScreen) setActiveScreen(null);
+      else if (selectedId) setSelectedId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [activeScreen, selectedId]);
+
   return (
     <div className="relative h-full w-full">
-      <KnowledgeGraph
-        nodes={nodes}
-        edges={edges}
-        selectedNodeId={selectedId}
-        onSelectNode={setSelectedId}
-      />
+      <KnowledgeGraph nodes={nodes} edges={edges} selectedNodeId={selectedId} onSelectNode={setSelectedId} />
       <TopBar connected={connected} onOpenAutopsy={() => openScreen('autopsy', null)} />
       <Legend />
+
+      {/* Loading / empty states — never leave the user staring at an unexplained void. */}
+      <AnimatePresence>
+        {loading && nodes.length === 0 && (
+          <motion.div
+            key="graph-loading"
+            className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="glass-panel flex items-center gap-3 px-5 py-4">
+              <motion.span
+                className="h-4 w-4 rounded-full border-2 border-transparent"
+                style={{ borderTopColor: 'var(--accent-cyan)', borderRightColor: 'var(--accent-cyan)' }}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
+              />
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Building your knowledge graph…
+              </span>
+            </div>
+          </motion.div>
+        )}
+
+        {!loading && nodes.length === 0 && (
+          <motion.div
+            key="graph-empty"
+            className="absolute inset-0 z-10 flex items-center justify-center p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <div className="glass-panel max-w-sm p-6 text-center">
+              <h3 className="font-display text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                No concepts yet
+              </h3>
+              <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Zynth couldn&apos;t reach the graph server, so there&apos;s nothing to map yet. Make sure the backend is
+                running, then reload.
+              </p>
+              <button className="btn-primary mt-4" onClick={() => window.location.reload()}>
+                Retry
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* First-run nudge — the single most useful thing to tell someone landing on a 3D graph. */}
+        {!loading && nodes.length > 0 && !hintDismissed && !selectedNode && !activeScreen && (
+          <motion.div
+            key="graph-hint"
+            className="absolute inset-x-0 bottom-8 z-10 flex justify-center px-6"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 8 }}
+            transition={{ delay: 1.2 }}
+          >
+            <div className="glass-chip flex items-center gap-3 px-4 py-2.5">
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                Click any glowing node to see what you actually know about it.
+              </span>
+              <button
+                onClick={dismissHint}
+                className="text-xs transition-colors duration-150"
+                style={{ color: 'var(--text-muted)' }}
+                aria-label="Dismiss hint"
+              >
+                Got it
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {selectedNode && (
           <NodePanel
@@ -85,34 +246,16 @@ export default function App() {
           />
         )}
       </AnimatePresence>
-      {/* Full-screen overlays — the graph stays mounted behind them at all times. */}
+      {/* Full-screen rooms — the graph stays mounted behind them at all times. */}
       <AnimatePresence>
         {activeScreen?.type === 'warroom' && activeScreenNode && (
-          <WarRoom
-            key="warroom"
-            node={activeScreenNode}
-            onClose={closeScreen}
-            patchNode={patchNode}
-            replaceNode={replaceNode}
-          />
+          <WarRoom key="warroom" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
         )}
         {activeScreen?.type === 'quiz' && activeScreenNode && (
-          <Quiz
-            key="quiz"
-            node={activeScreenNode}
-            onClose={closeScreen}
-            patchNode={patchNode}
-            replaceNode={replaceNode}
-          />
+          <Quiz key="quiz" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
         )}
         {activeScreen?.type === 'explain' && activeScreenNode && (
-          <Explain
-            key="explain"
-            node={activeScreenNode}
-            onClose={closeScreen}
-            patchNode={patchNode}
-            replaceNode={replaceNode}
-          />
+          <Explain key="explain" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
         )}
         {activeScreen?.type === 'autopsy' && <Autopsy key="autopsy" onClose={closeScreen} />}
       </AnimatePresence>
