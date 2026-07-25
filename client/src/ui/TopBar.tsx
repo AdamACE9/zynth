@@ -3,6 +3,10 @@ import { motion } from 'motion/react';
 interface TopBarProps {
   connected: boolean;
   onOpenAutopsy: () => void;
+  /** Study-Plan Board — the route across the graph toward a stated goal. */
+  onOpenPlan: () => void;
+  /** Exam Simulator — a timed paper that reports back to specific nodes. */
+  onOpenExam: () => void;
 }
 
 const FOCUS_RING =
@@ -41,7 +45,7 @@ function AutopsyIcon() {
  * exists to stay out of its way. A soft top scrim keeps the type legible over
  * bright nebula without introducing a hard bar edge.
  */
-export function TopBar({ connected, onOpenAutopsy }: TopBarProps) {
+export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam }: TopBarProps) {
   const statusColor = connected ? 'var(--status-green)' : 'var(--text-muted)';
   const statusGlow = connected ? 'var(--status-green-glow)' : 'transparent';
 
@@ -80,15 +84,33 @@ export function TopBar({ connected, onOpenAutopsy }: TopBarProps) {
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={onOpenAutopsy}
-          className={`glass-chip btn-chip pointer-events-auto flex shrink-0 items-center gap-2 px-3 py-2 sm:px-3.5 ${FOCUS_RING}`}
-          style={{ fontSize: 12.5, fontWeight: 600 }}
-        >
-          <AutopsyIcon />
-          Autopsy
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenPlan}
+            className={`glass-chip btn-chip pointer-events-auto hidden shrink-0 items-center gap-2 px-3 py-2 sm:flex sm:px-3.5 ${FOCUS_RING}`}
+            style={{ fontSize: 12.5, fontWeight: 600 }}
+          >
+            Plan
+          </button>
+          <button
+            type="button"
+            onClick={onOpenExam}
+            className={`glass-chip btn-chip pointer-events-auto hidden shrink-0 items-center gap-2 px-3 py-2 sm:flex sm:px-3.5 ${FOCUS_RING}`}
+            style={{ fontSize: 12.5, fontWeight: 600 }}
+          >
+            Exam
+          </button>
+          <button
+            type="button"
+            onClick={onOpenAutopsy}
+            className={`glass-chip btn-chip pointer-events-auto flex shrink-0 items-center gap-2 px-3 py-2 sm:px-3.5 ${FOCUS_RING}`}
+            style={{ fontSize: 12.5, fontWeight: 600 }}
+          >
+            <AutopsyIcon />
+            Autopsy
+          </button>
+        </div>
       </div>
     </motion.header>
   );

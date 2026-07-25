@@ -12,6 +12,8 @@ import { WarRoom } from './screens/WarRoom';
 import { Quiz } from './screens/Quiz';
 import { Explain } from './screens/Explain';
 import { Autopsy } from './screens/Autopsy';
+import { StudyPlan } from './screens/StudyPlan';
+import { ExamSim } from './screens/ExamSim';
 import { Landing } from './site/Landing';
 import { Onboarding } from './onboarding/Onboarding';
 
@@ -21,7 +23,10 @@ interface GraphPayload {
 }
 
 /** Which full-screen overlay (if any) is mounted on top of the ever-present graph. */
-type ActiveScreen = { type: 'warroom' | 'quiz' | 'explain' | 'autopsy'; nodeId: string | null };
+type ActiveScreen = {
+  type: 'warroom' | 'quiz' | 'explain' | 'autopsy' | 'plan' | 'exam';
+  nodeId: string | null;
+};
 
 /**
  * Top-level surface router. Zynth needs NO LOGIN, so the whole model is:
@@ -147,7 +152,12 @@ function GraphApp() {
   return (
     <div className="relative h-full w-full">
       <KnowledgeGraph nodes={nodes} edges={edges} selectedNodeId={selectedId} onSelectNode={setSelectedId} />
-      <TopBar connected={connected} onOpenAutopsy={() => openScreen('autopsy', null)} />
+      <TopBar
+        connected={connected}
+        onOpenAutopsy={() => openScreen('autopsy', null)}
+        onOpenPlan={() => openScreen('plan', null)}
+        onOpenExam={() => openScreen('exam', null)}
+      />
       <Legend />
 
       {/* Loading / empty states — never leave the user staring at an unexplained void. */}
@@ -251,6 +261,8 @@ function GraphApp() {
           <Explain key="explain" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
         )}
         {activeScreen?.type === 'autopsy' && <Autopsy key="autopsy" onClose={closeScreen} />}
+        {activeScreen?.type === 'plan' && <StudyPlan key="plan" onClose={closeScreen} />}
+        {activeScreen?.type === 'exam' && <ExamSim key="exam" onClose={closeScreen} />}
       </AnimatePresence>
     </div>
   );
