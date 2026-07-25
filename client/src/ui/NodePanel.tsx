@@ -1,8 +1,9 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Node, QuizResultSummary, Status } from '@zynth/shared';
-import { STATUS_COLORS } from '@zynth/shared';
+import { masteryStreak, STATUS_COLORS } from '@zynth/shared';
 import { engageNode } from '../lib/api';
+import { StreakFlame } from './StreakFlame';
 
 interface NodePanelProps {
   node: Node;
@@ -177,6 +178,7 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
   const recommendation = RECOMMENDATION[node.status];
   const quizResult = formatQuizResult(node.last_quiz_result);
   const scorePct = Math.max(0, Math.min(100, node.mastery_score));
+  const streak = masteryStreak(node);
 
   return (
     <motion.aside
@@ -227,17 +229,20 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
               </span>
               <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>/100</span>
             </div>
-            <span
-              className="glass-chip inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1"
-              style={{ color: statusColor, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em' }}
-            >
+            <div className="flex shrink-0 items-center gap-2">
+              <StreakFlame count={streak} />
               <span
-                aria-hidden
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ backgroundColor: statusColor, boxShadow: `0 0 8px ${statusGlow}, 0 0 2px ${statusGlow}` }}
-              />
-              {STATUS_LABEL[node.status]}
-            </span>
+                className="glass-chip inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1"
+                style={{ color: statusColor, fontSize: 11, fontWeight: 700, letterSpacing: '0.06em' }}
+              >
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: statusColor, boxShadow: `0 0 8px ${statusGlow}, 0 0 2px ${statusGlow}` }}
+                />
+                {STATUS_LABEL[node.status]}
+              </span>
+            </div>
           </div>
 
           <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.09)' }}>
