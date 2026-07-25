@@ -158,6 +158,14 @@ export interface QuizQuestion {
   is_correct?: boolean;
   question_type?: 'mcq' | 'free_response';
   explanation?: string; // shown after grading — why the correct answer is correct
+  /**
+   * Parallel to `choices`: a snake_case tag naming the specific misconception a
+   * student must hold to pick that option ("" for the correct one). The Live
+   * Co-Pilot uses matching tags across questions as its strongest evidence that
+   * two wrong answers share ONE root cause rather than being two unrelated
+   * slips. Optional — every detection rule degrades gracefully without it.
+   */
+  choice_tags?: string[];
 }
 
 export interface QuizSession {
@@ -252,9 +260,16 @@ export interface CopilotHeatCell {
   label: string;
   answered: number;
   correct: number;
-  /** 0-100 live confidence estimate for this node within the session. */
+  /**
+   * 0-100 live confidence for this node within the session. Display-only and
+   * session-scoped — it NEVER writes Node.status or Node.mastery_score.
+   * Smoothed against the node's existing mastery as a prior so it stays
+   * meaningful at 2-4 questions per node.
+   */
   confidence: number;
-  trend: 'rising' | 'falling' | 'flat';
+  trend: 'rising' | 'flat' | 'falling' | 'collapsing';
+  /** The graph's real status, passed through unchanged for display. */
+  status: Status;
 }
 
 /**
@@ -275,6 +290,10 @@ export interface CopilotInsight {
   error_type: ErrorType;
   /** 0-1. Below the firing threshold we stay silent. */
   confidence: number;
+  /** Which detection pattern fired, for debugging and the results recap. */
+  pattern?: 'repeated_failure_same_node' | 'correlated_cross_node' | 'documented_recurrence';
+  /** Routes the card straight into the fix — the diagnose→replan loop. */
+  suggested_action?: 'war_room' | 'explain' | 'none';
   at: ISOTimestamp;
 }
 
