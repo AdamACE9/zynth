@@ -29,6 +29,8 @@ import {
   computeMasteryScore,
   type Node,
   type QuizSession,
+  type Status,
+  type StatusChangeCause,
   type StatusHistoryEntry,
 } from '@zynth/shared';
 import { db } from '../db/connection';
@@ -37,6 +39,46 @@ import { emitNodeUpdated, emitStatusChanged } from '../socket';
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+// ---------------------------------------------------------------------------
+// Status-change listeners
+// ---------------------------------------------------------------------------
+
+/**
+ * In-process notification for anything that must react to a REAL mastery
+ * transition — currently the Study Plan, which re-plans itself silently rather
+ * than waiting for the student to press refresh.
+ *
+ * This exists so downstream services never have to reach into socket.io
+ * internals to find out that something changed. Listeners are notified AFTER
+ * the transaction has committed and the socket event has gone out, and a
+ * throwing listener can never corrupt or roll back a status change.
+ */
+export type StatusChangeListener = (payload: {
+  node: Node;
+  cause: StatusChangeCause;
+  previous_status: Status;
+}) => void;
+
+const statusChangeListeners = new Set<StatusChangeListener>();
+
+/** Subscribe to committed status transitions. Returns an unsubscribe function. */
+export function onStatusChanged(listener: StatusChangeListener): () => void {
+  statusChangeListeners.add(listener);
+  return () => statusChangeListeners.delete(listener);
+}
+
+function notifyStatusChanged(node: Node, cause: StatusChangeCause, previous_status: Status): void {
+  for (const listener of statusChangeListeners) {
+    try {
+      listener({ node, cause, previous_status });
+    } catch (err) {
+      // A misbehaving subscriber must never break the mastery write path.
+      // eslint-disable-next-line no-console
+      console.error('[statusService] status-change listener threw:', err);
+    }
+  }
 }
 
 /**
@@ -86,6 +128,7 @@ export function engageNode(nodeId: string): Node {
   }
 
   emitStatusChanged(updated, 'engage', previousStatus);
+  notifyStatusChanged(updated, 'engage', previousStatus);
   emitNodeUpdated(updated);
 
   return updated;
@@ -141,6 +184,7 @@ export function applyQuizResult(session: QuizSession): { updated: Node[] } {
 
         const fresh = nodesRepo.getById(nodeId)!;
         emitStatusChanged(fresh, 'quiz_passed', previousStatus);
+        notifyStatusChanged(fresh, 'quiz_passed', previousStatus);
         emitNodeUpdated(fresh);
         updated.push(fresh);
       } else {
@@ -231,6 +275,7 @@ export function applyQuizResult(session: QuizSession): { updated: Node[] } {
 
         const fresh = nodesRepo.getById(nodeId)!;
         emitStatusChanged(fresh, 'quiz_failed', previousStatus);
+        notifyStatusChanged(fresh, 'quiz_failed', previousStatus);
         emitNodeUpdated(fresh);
         updated.push(fresh);
       }

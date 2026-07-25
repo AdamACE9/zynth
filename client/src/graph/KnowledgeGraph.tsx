@@ -7,6 +7,7 @@ import { useGraphLayout } from './useGraphLayout';
 import { NodeMesh } from './NodeMesh';
 import { Edges } from './Edges';
 import { ClusterLabels } from './ClusterLabels';
+import { GhostPath } from './GhostPath';
 
 interface KnowledgeGraphProps {
   nodes: Node[];
@@ -69,6 +70,7 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
       <CameraDolly />
 
       <Edges edges={edges} positions={positions} />
+      <GhostPath positions={positions} />
 
       {nodes.map((node) => {
         const position = positions.get(node.id);
