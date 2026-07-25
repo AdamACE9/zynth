@@ -1,287 +1,309 @@
-/* ---------------------------------------------------------------------------
-   Zynth marketing site.
+/* ==========================================================================
+   Zynth — marketing site.
 
-   EVERYTHING with a comma in its value lives here, NOT in a Tailwind arbitrary
-   class. Tailwind v4 silently drops classes whose arbitrary value contains a
-   comma — `text-[clamp(2.6rem,7vw,4.6rem)]` compiled to nothing, so the hero
-   rendered at the inherited 16px with a 15.68px line-height (tiny + overlapping
-   lines). Do not move these back into class names.
-   --------------------------------------------------------------------------- */
+   POINT OF VIEW
+   Zynth's own vocabulary is forensic: Autopsy Board, War Room, Evidence,
+   Verdict, Case closed, Proven / Unproven. So the site is a CASE DOSSIER, not
+   another dark-nebula AI landing page: ink on paper, hairline rules, tabular
+   figures, marginal numerals, technical-drawing graph.
+
+   THE ONE COLOUR RULE
+   Red, amber and green are the ONLY colours on the page. No brand gradient, no
+   cyan/violet chrome. Colour means evidence and nothing else — the same rule
+   the product enforces in its database.
+
+   TAILWIND V4 WARNING
+   Arbitrary values containing commas are silently dropped
+   (`text-[clamp(2rem,5vw,3rem)]` compiles to nothing → 16px fallback). Every
+   clamp/shadow/gradient therefore lives here as real CSS.
+   ========================================================================== */
 
 .zynth-site {
-  /* The app shell pins html/body/#root to overflow:hidden, so the site owns
-     its own scroll container. */
+  /* The app shell pins html/body/#root to overflow:hidden — the site owns its
+     own scroll container. */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   scroll-behavior: smooth;
   position: relative;
   z-index: 10;
-  background: #050609;
+
+  --pap: #f2efe7;
+  --pap-2: #e9e5da;
+  --ink: #16150f;
+  --ink-70: rgba(22, 21, 15, 0.7);
+  --ink-45: rgba(22, 21, 15, 0.45);
+  --ink-25: rgba(22, 21, 15, 0.25);
+  --rule: rgba(22, 21, 15, 0.16);
+  --rule-soft: rgba(22, 21, 15, 0.09);
+
+  /* Deepened for contrast on paper; same hues as the product's status colours. */
+  --red: #d21f43;
+  --amb: #b87206;
+  --grn: #0b8f63;
+
+  background: var(--pap);
+  color: var(--ink);
+  font-family: 'Instrument Sans', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Graph paper: this is a knowledge GRAPH, drawn on a lab notebook. */
+  background-image:
+    linear-gradient(var(--rule-soft) 1px, transparent 1px),
+    linear-gradient(90deg, var(--rule-soft) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
 }
 
-/* -- Type scale ------------------------------------------------------------- */
+/* -- Type ------------------------------------------------------------------ */
 
-.zynth-site .display {
-  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
+.zynth-site .serif {
+  font-family: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  font-weight: 400;
+  letter-spacing: -0.012em;
+}
+
+.zynth-site .mono {
+  font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-feature-settings: 'tnum' 1;
 }
 
 .zynth-site .t-hero {
-  font-size: clamp(3rem, 7.4vw, 6.5rem);
-  line-height: 0.98;
-  letter-spacing: -0.042em;
+  font-size: clamp(3.4rem, 8.6vw, 8rem);
+  line-height: 0.92;
+  letter-spacing: -0.022em;
 }
 
 .zynth-site .t-sect {
-  font-size: clamp(2rem, 4.6vw, 3.6rem);
-  line-height: 1.05;
-  letter-spacing: -0.035em;
-}
-
-.zynth-site .t-card {
-  font-size: clamp(1.125rem, 1.4vw, 1.375rem);
-  line-height: 1.28;
+  font-size: clamp(2.4rem, 5.4vw, 4.2rem);
+  line-height: 0.98;
   letter-spacing: -0.018em;
 }
 
+.zynth-site .t-sub {
+  font-size: clamp(1.35rem, 2.1vw, 1.75rem);
+  line-height: 1.24;
+  letter-spacing: -0.012em;
+}
+
 .zynth-site .t-lede {
-  font-size: clamp(1.0625rem, 1.45vw, 1.375rem);
-  line-height: 1.58;
-  letter-spacing: -0.008em;
+  font-size: clamp(1.0625rem, 1.35vw, 1.1875rem);
+  line-height: 1.6;
+  color: var(--ink-70);
 }
 
 .zynth-site .t-body {
   font-size: 0.9688rem;
-  line-height: 1.65;
+  line-height: 1.62;
+  color: var(--ink-70);
 }
 
-.zynth-site .t-stat {
-  font-size: clamp(2rem, 3.6vw, 3rem);
+/* Specimen label — the small uppercase mono tag that runs the whole dossier. */
+.zynth-site .t-tag {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-45);
+}
+
+.zynth-site .t-fig {
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: clamp(2.2rem, 4vw, 3.4rem);
+  font-weight: 400;
   line-height: 1;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
 }
 
-/* Numbered section marker — the signature borrowed from the reference sites. */
-.zynth-site .t-index {
-  font-family: 'Space Grotesk', sans-serif;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.32em;
-  color: var(--accent-cyan);
-  opacity: 0.85;
-}
+/* -- Layout ---------------------------------------------------------------- */
 
-.zynth-site .t-eyebrow {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.24em;
-  color: rgba(240, 243, 253, 0.55);
-}
-
-.zynth-site .ink-grad {
-  background: linear-gradient(94deg, #7ff0f2 0%, #b6a6ff 52%, #9b7bff 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-
-/* -- Layout ----------------------------------------------------------------- */
-
-.zynth-site .shell {
+.zynth-site .sheet {
   width: 100%;
-  max-width: 1160px;
+  max-width: 1180px;
   margin-inline: auto;
-  padding-inline: 20px;
+  padding-inline: 22px;
 }
 
-@media (min-width: 640px) {
-  .zynth-site .shell {
-    padding-inline: 40px;
+@media (min-width: 768px) {
+  .zynth-site .sheet {
+    padding-inline: 48px;
   }
 }
 
 .zynth-site .band {
-  padding-block: clamp(72px, 11vw, 148px);
+  padding-block: clamp(76px, 10vw, 140px);
+  border-top: 1px solid var(--rule);
 }
 
-.zynth-site .rule-line {
+/* Marginal section numeral, like an exhibit reference. */
+.zynth-site .exhibit {
+  display: grid;
+  gap: 10px 34px;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .zynth-site .exhibit {
+    grid-template-columns: 82px 1fr;
+  }
+}
+
+/* -- Ink rules ------------------------------------------------------------- */
+
+.zynth-site .hair {
   height: 1px;
+  background: var(--rule);
   border: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.11) 50%, transparent);
 }
 
-/* -- Surfaces --------------------------------------------------------------- */
+/* -- Cards ----------------------------------------------------------------- */
 
-.zynth-site .card {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 18px;
+.zynth-site .file {
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.5);
   transition:
-    transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
     border-color 200ms ease-out,
-    background 200ms ease-out;
+    background 200ms ease-out,
+    transform 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.zynth-site .card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(255, 255, 255, 0.2);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+.zynth-site .file:hover {
+  border-color: var(--ink-25);
+  background: rgba(255, 255, 255, 0.82);
+  transform: translateY(-2px);
 }
 
-/* -- Buttons ---------------------------------------------------------------- */
+/* -- Controls -------------------------------------------------------------- */
 
-.zynth-site .cta {
+.zynth-site .btn {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  border-radius: 12px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: 'IBM Plex Mono', ui-monospace, monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
   transition:
-    transform 90ms ease-out,
-    filter 160ms ease-out,
+    background 160ms ease-out,
+    color 160ms ease-out,
     border-color 160ms ease-out,
-    background 160ms ease-out;
+    transform 90ms ease-out;
 }
 
-.zynth-site .cta:active {
-  transform: scale(0.985);
+.zynth-site .btn:active {
+  transform: translateY(1px);
 }
 
-.zynth-site .cta-solid {
-  background: linear-gradient(180deg, #6ff0f3, #45d8dc);
-  color: #04141a;
-  box-shadow:
-    0 10px 34px rgba(82, 229, 232, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+.zynth-site .btn-ink {
+  background: var(--ink);
+  color: var(--pap);
+  border: 1px solid var(--ink);
 }
 
-.zynth-site .cta-solid:hover {
-  filter: brightness(1.07);
+.zynth-site .btn-ink:hover {
+  background: #000;
 }
 
-.zynth-site .cta-ghost {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(240, 243, 253, 0.92);
+.zynth-site .btn-out {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink-25);
 }
 
-.zynth-site .cta-ghost:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.26);
+.zynth-site .btn-out:hover {
+  border-color: var(--ink);
 }
 
-/* -- Hero ------------------------------------------------------------------- */
+/* -- Status ---------------------------------------------------------------- */
 
-.zynth-site .hero {
-  position: relative;
-  min-height: 96vh;
-  display: flex;
-  align-items: center;
-  overflow: hidden;
-}
-
-/* The 3D canvas sits behind the copy, full-bleed. */
-.zynth-site .hero-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-}
-
-/* Scrims: keep the headline readable over a moving 3D scene, and fade the
-   scene into the next section instead of cutting it off. */
-.zynth-site .hero-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, rgba(5, 6, 9, 0.94) 0%, rgba(5, 6, 9, 0.72) 42%, rgba(5, 6, 9, 0.12) 72%, transparent 100%),
-    linear-gradient(0deg, #050609 0%, rgba(5, 6, 9, 0.55) 16%, transparent 46%);
-}
-
-@media (max-width: 1023px) {
-  .zynth-site .hero-scrim {
-    background:
-      linear-gradient(0deg, #050609 4%, rgba(5, 6, 9, 0.86) 34%, rgba(5, 6, 9, 0.55) 62%, rgba(5, 6, 9, 0.35) 100%);
-  }
-}
-
-.zynth-site .hero-content {
-  position: relative;
-  z-index: 2;
-}
-
-@keyframes zynth-scroll-cue {
-  0%,
-  100% {
-    transform: translateY(0);
-    opacity: 0.5;
-  }
-  50% {
-    transform: translateY(6px);
-    opacity: 1;
-  }
-}
-
-.zynth-site .scroll-cue {
-  animation: zynth-scroll-cue 2.2s ease-in-out infinite;
-}
-
-/* -- Status pips ------------------------------------------------------------ */
-
-.zynth-site .pip {
+.zynth-site .dot {
   display: inline-block;
   flex: none;
   border-radius: 999px;
-  transition:
-    background 700ms ease-out,
-    box-shadow 700ms ease-out;
+  transition: background 600ms ease-out;
 }
 
-/* -- Chat mock -------------------------------------------------------------- */
+/* -- Hero ------------------------------------------------------------------ */
 
-.zynth-site .bubble {
-  border-radius: 14px;
-  padding: 11px 15px;
-  border: 1px solid;
+.zynth-site .hero {
+  position: relative;
+  border-top: 0;
 }
 
-/* -- FAQ -------------------------------------------------------------------- */
-
-.zynth-site .faq-item {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+.zynth-site .plate {
+  position: relative;
+  border: 1px solid var(--rule);
+  background: rgba(255, 255, 255, 0.45);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
 }
 
-.zynth-site .faq-q {
+/* Corner ticks — draughtsman's registration marks around the drawing. */
+.zynth-site .plate::before,
+.zynth-site .plate::after {
+  content: '';
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--ink-25);
+  pointer-events: none;
+}
+
+.zynth-site .plate::before {
+  top: 9px;
+  left: 9px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.zynth-site .plate::after {
+  bottom: 9px;
+  right: 9px;
+  border-left: 0;
+  border-top: 0;
+}
+
+/* -- Reveal: a wipe, not the default fade-up ------------------------------- */
+
+@keyframes zynth-wipe {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.zynth-site .draw-in {
+  animation: zynth-wipe 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* -- FAQ ------------------------------------------------------------------- */
+
+.zynth-site .q {
   width: 100%;
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 20px;
+  gap: 24px;
   text-align: left;
-  padding-block: 22px;
-  transition: color 160ms ease-out;
+  padding-block: 24px;
+  border-top: 1px solid var(--rule);
 }
 
-/* -- Focus ------------------------------------------------------------------ */
+/* -- Focus ----------------------------------------------------------------- */
 
 .zynth-site :focus-visible {
-  outline: 2px solid var(--accent-cyan);
+  outline: 2px solid var(--ink);
   outline-offset: 3px;
-  border-radius: 10px;
 }
-
-/* -- Reduced motion --------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   .zynth-site,
   .zynth-site * {
     animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }

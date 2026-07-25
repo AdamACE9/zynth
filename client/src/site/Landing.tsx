@@ -10,561 +10,448 @@ export interface LandingProps {
   onStartTour: () => void;
 }
 
-/* ── tokens ───────────────────────────────────────────────────────────────── */
+const HUE: Record<SpotStatus, string> = { red: 'var(--red)', amber: 'var(--amb)', green: 'var(--grn)' };
 
-const STATUS: Record<SpotStatus, string> = { red: '#ff3b5c', amber: '#ffb020', green: '#28e0a0' };
-const INK = '#f4f6ff';
-const INK_2 = 'rgba(240,243,253,0.78)';
-const INK_3 = 'rgba(240,243,253,0.55)';
+/* ── atoms ─────────────────────────────────────────────────────────────── */
 
-/* ── atoms ────────────────────────────────────────────────────────────────── */
-
-function Reveal({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
+/** A wipe, deliberately not the stock fade-up. Reads like ink being laid down. */
+function Ink({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 22 }}
+      initial={{ opacity: 0, y: 8 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-80px' }}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
+      viewport={{ once: true, margin: '-70px' }}
+      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       {children}
     </motion.div>
   );
 }
 
-function Pip({ color, size = 9 }: { color: string; size?: number }) {
-  return (
-    <span
-      className="pip"
-      style={{ width: size, height: size, background: color, boxShadow: `0 0 10px ${color}, 0 0 3px ${color}` }}
-    />
-  );
+function Dot({ hue, size = 9 }: { hue: string; size?: number }) {
+  return <span className="dot" style={{ width: size, height: size, background: hue }} />;
 }
 
-/** Numbered section header — the signature lifted from the reference sites. */
-function Chapter({ index, eyebrow, title, lede }: { index: string; eyebrow: string; title: ReactNode; lede?: ReactNode }) {
+/** Exhibit header: marginal numeral + rule, like a case file section. */
+function Exhibit({ n, tag, title, lede }: { n: string; tag: string; title: ReactNode; lede?: ReactNode }) {
   return (
-    <Reveal>
-      <div className="flex items-baseline gap-4">
-        <span className="t-index">[{index}]</span>
-        <span className="t-eyebrow">{eyebrow}</span>
+    <div className="exhibit">
+      <div className="t-tag pt-2">{n}</div>
+      <div>
+        <Ink>
+          <div className="t-tag">{tag}</div>
+          <h2 className="serif t-sect mt-5" style={{ maxWidth: '17ch' }}>
+            {title}
+          </h2>
+          {lede && (
+            <p className="t-lede mt-6" style={{ maxWidth: '54ch' }}>
+              {lede}
+            </p>
+          )}
+        </Ink>
       </div>
-      <h2 className="display t-sect mt-6" style={{ color: INK }}>
-        {title}
-      </h2>
-      {lede && (
-        <p className="t-lede mt-6 max-w-2xl" style={{ color: INK_2 }}>
-          {lede}
-        </p>
-      )}
-    </Reveal>
+    </div>
   );
 }
 
-/* ── hero cycle ───────────────────────────────────────────────────────────── */
+/* ── hero demo cycle ───────────────────────────────────────────────────── */
 
-const CYCLE: { s: SpotStatus; hold: number; label: string }[] = [
-  { s: 'red', hold: 2800, label: 'untouched — no evidence yet' },
-  { s: 'amber', hold: 3200, label: 'debated in the War Room — still unproven' },
-  { s: 'green', hold: 4000, label: 'quiz passed — proven' },
+const CYCLE: { s: SpotStatus; hold: number; verdict: string }[] = [
+  { s: 'red', hold: 2900, verdict: 'no evidence on file' },
+  { s: 'amber', hold: 3200, verdict: 'engaged — claim unproven' },
+  { s: 'green', hold: 4000, verdict: 'quiz passed — proven' },
 ];
 
-/* ── page ─────────────────────────────────────────────────────────────────── */
+/* ── page ──────────────────────────────────────────────────────────────── */
 
 export function Landing({ onEnter, onStartTour }: LandingProps) {
   const [i, setI] = useState(0);
   const beat = CYCLE[i % CYCLE.length]!;
+  const [openQ, setOpenQ] = useState<number | null>(0);
 
   useEffect(() => {
     const t = setTimeout(() => setI((n) => n + 1), beat.hold);
     return () => clearTimeout(t);
   }, [i, beat.hold]);
 
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-
   return (
     <div className="zynth-site">
-      {/* ─── nav ─────────────────────────────────────────────────────────── */}
+      {/* ── masthead ─────────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-40"
-        style={{ background: 'rgba(5,6,9,0.7)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+        style={{ background: 'rgba(242,239,231,0.86)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--rule)' }}
       >
-        <div className="shell flex items-center justify-between" style={{ height: 66 }}>
-          <a href="#top" className="display" style={{ fontSize: 21, letterSpacing: '-0.03em', color: INK }}>
+        <div className="sheet flex items-center justify-between" style={{ height: 62 }}>
+          <a href="#top" className="serif" style={{ fontSize: 25, letterSpacing: '-0.02em' }}>
             Zynth
           </a>
-          <nav className="hidden items-center gap-9 md:flex">
+          <nav className="hidden items-center gap-8 md:flex">
             {[
-              ['The rule', '#rule'],
-              ['War Room', '#warroom'],
-              ['Autopsy', '#autopsy'],
-              ['FAQ', '#faq'],
+              ['01 The rule', '#e01'],
+              ['02 War Room', '#e02'],
+              ['03 Autopsy', '#e03'],
+              ['05 Questions', '#e05'],
             ].map(([l, h]) => (
-              <a key={h} href={h} className="t-body transition-colors duration-150" style={{ color: INK_3 }}>
+              <a key={h} href={h} className="t-tag" style={{ letterSpacing: '0.1em' }}>
                 {l}
               </a>
             ))}
           </nav>
-          <button onClick={onEnter} className="cta cta-solid" style={{ padding: '9px 18px', fontSize: 14 }}>
-            Open Zynth
+          <button onClick={onEnter} className="btn btn-ink" style={{ padding: '9px 16px' }}>
+            Open
           </button>
         </div>
       </header>
 
       <main id="top">
-        {/* ─── hero ──────────────────────────────────────────────────────── */}
-        <section className="hero">
-          <div className="hero-canvas">
-            <Hero3D spotlight={beat.s} />
-          </div>
-          <div className="hero-scrim" />
+        {/* ── hero ───────────────────────────────────────────────────── */}
+        <section className="hero sheet" style={{ paddingBlock: 'clamp(48px,7vw,88px) clamp(56px,7vw,96px)' }}>
+          <div className="grid items-center gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16">
+            <div>
+              <Ink>
+                <div className="t-tag">Student Learning OS — est. 2026</div>
+              </Ink>
 
-          <div className="hero-content shell w-full" style={{ paddingBlock: '120px 96px' }}>
-            <motion.p
-              className="t-eyebrow"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-            >
-              Student Learning OS
-            </motion.p>
+              <motion.h1
+                className="serif t-hero mt-7"
+                style={{ maxWidth: '12ch' }}
+                initial={{ opacity: 0, y: 14 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+              >
+                The truth about what you{' '}
+                <em style={{ fontStyle: 'italic' }}>actually</em> know.
+              </motion.h1>
 
-            <motion.h1
-              className="display t-hero mt-7"
-              style={{ color: INK, maxWidth: '15ch' }}
-              initial={{ opacity: 0, y: 22 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.85, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
-            >
-              Find out what you <span className="ink-grad">actually</span> know.
-            </motion.h1>
+              <motion.p
+                className="t-lede mt-8"
+                style={{ maxWidth: '48ch' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.7, delay: 0.15 }}
+              >
+                Zynth keeps a case file on every concept in your syllabus. Nothing counts as known until you have
+                produced evidence for it — and a quiz is the only evidence it accepts.
+              </motion.p>
 
-            <motion.p
-              className="t-lede mt-8"
-              style={{ color: INK_2, maxWidth: '46ch' }}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.2 }}
-            >
-              Your whole syllabus becomes one living graph. Engage a concept and it turns amber. Prove it with a quiz
-              and it turns green. <em style={{ color: INK, fontStyle: 'italic' }}>Nothing else counts.</em>
-            </motion.p>
+              <motion.div
+                className="mt-10 flex flex-wrap items-center gap-3"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.7, delay: 0.25 }}
+              >
+                <button onClick={onEnter} className="btn btn-ink" style={{ padding: '15px 26px' }}>
+                  Open the graph
+                </button>
+                <button onClick={onStartTour} className="btn btn-out" style={{ padding: '15px 22px' }}>
+                  Take the tour
+                </button>
+              </motion.div>
 
-            {/* live caption — sits in flow under the copy, never over the canvas */}
+              <Ink delay={0.35}>
+                <p className="t-tag mt-7">No account · nothing installed · nothing leaves your device</p>
+              </Ink>
+            </div>
+
+            {/* the drawing */}
             <motion.div
-              className="mt-9 inline-flex items-center gap-3 rounded-full"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', padding: '9px 16px' }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.3 }}
+              transition={{ duration: 1.1, delay: 0.15 }}
             >
-              <Pip color={STATUS[beat.s]} />
-              <span className="t-body" style={{ color: INK, fontWeight: 500 }}>
-                Chain Rule
-              </span>
-              <motion.span key={beat.s} className="t-body" style={{ color: INK_3 }} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                {beat.label}
-              </motion.span>
+              <div className="plate">
+                <Hero3D spotlight={beat.s} />
+              </div>
+              {/* figure caption — the live verdict on the highlighted node */}
+              <div className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
+                <div className="flex items-center gap-2.5">
+                  <Dot hue={HUE[beat.s]} />
+                  <span className="mono" style={{ fontSize: 13 }}>
+                    Chain Rule
+                  </span>
+                  <motion.span key={beat.s} className="t-tag" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ letterSpacing: '0.08em' }}>
+                    {beat.verdict}
+                  </motion.span>
+                </div>
+                <span className="t-tag">Fig. 1 — mastery graph, live</span>
+              </div>
             </motion.div>
-
-            <motion.div
-              className="mt-10 flex flex-wrap items-center gap-3"
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.36 }}
-            >
-              <button onClick={onEnter} className="cta cta-solid" style={{ padding: '15px 28px', fontSize: 16 }}>
-                Open Zynth <span aria-hidden>→</span>
-              </button>
-              <button onClick={onStartTour} className="cta cta-ghost" style={{ padding: '15px 24px', fontSize: 16 }}>
-                Take the 60-second tour
-              </button>
-            </motion.div>
-
-            <motion.p
-              className="mt-6 t-body"
-              style={{ color: INK_3 }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.46 }}
-            >
-              No login. No account. Nothing to install.
-            </motion.p>
-          </div>
-
-          <div className="scroll-cue absolute inset-x-0 bottom-7 z-10 flex justify-center" aria-hidden>
-            <span className="t-eyebrow">scroll</span>
           </div>
         </section>
 
-        {/* ─── stats ─────────────────────────────────────────────────────── */}
-        <section style={{ borderBlock: '1px solid rgba(255,255,255,0.07)' }}>
-          <div className="shell grid grid-cols-2 gap-y-10 py-14 md:grid-cols-4">
+        {/* ── evidence bar ───────────────────────────────────────────── */}
+        <section style={{ borderTop: '1px solid var(--rule)', borderBottom: '1px solid var(--rule)' }}>
+          <div className="sheet grid grid-cols-2 md:grid-cols-4">
             {[
-              ['5', 'AI minds per debate'],
-              ['70%', 'to prove a concept'],
-              ['1', 'way to reach green'],
-              ['0', 'logins, ever'],
+              ['05', 'minds per debate'],
+              ['70', 'per cent to prove it'],
+              ['01', 'route to green'],
+              ['00', 'accounts required'],
             ].map(([n, l], idx) => (
-              <Reveal key={l} delay={idx * 0.06}>
-                <div>
-                  <div className="display t-stat" style={{ color: INK }}>
-                    {n}
-                  </div>
-                  <div className="t-body mt-2" style={{ color: INK_3 }}>
-                    {l}
-                  </div>
+              <Ink key={l} delay={idx * 0.05}>
+                <div
+                  className="py-10"
+                  style={{ borderLeft: idx === 0 ? 'none' : '1px solid var(--rule)', paddingLeft: idx === 0 ? 0 : 26 }}
+                >
+                  <div className="t-fig">{n}</div>
+                  <div className="t-tag mt-3">{l}</div>
                 </div>
-              </Reveal>
+              </Ink>
             ))}
           </div>
         </section>
 
-        {/* ─── [01] the rule ─────────────────────────────────────────────── */}
-        <section id="rule" className="band">
-          <div className="shell">
-            <Chapter
-              index="01"
-              eyebrow="The one rule"
+        {/* ── 01 the rule ────────────────────────────────────────────── */}
+        <section id="e01" className="band">
+          <div className="sheet">
+            <Exhibit
+              n="01"
+              tag="The standard of proof"
               title={
                 <>
-                  Green has to be <span className="ink-grad">earned</span>.
+                  Green is a <em style={{ fontStyle: 'italic' }}>verdict</em>, not a mood.
                 </>
               }
-              lede={
-                <>
-                  Most apps mark a topic complete the moment you look at it. Zynth refuses. Here, colour is{' '}
-                  <em style={{ color: INK, fontStyle: 'italic' }}>evidence</em> — not effort, not hours, not good intentions.
-                </>
-              }
+              lede="Most study apps mark a topic done the moment you look at it. Zynth treats that as hearsay. A concept has exactly three states, and only one of them means you can actually do it."
             />
 
-            <div className="mt-14 grid gap-5 md:grid-cols-3">
+            <div className="mt-16">
               {[
-                { s: 'red' as const, n: 'Red', h: 'Untouched, or just failed.', b: 'Where every concept starts. Re-reading the chapter nine times does not move it one pixel.' },
-                { s: 'amber' as const, n: 'Amber', h: 'Engaged, not proven.', b: 'You worked it in the War Room or with the tutor. Zynth thinks you understand it — but it has no evidence yet.' },
-                { s: 'green' as const, n: 'Green', h: 'Proven.', b: 'You passed a quiz. The only door to green — and it stays honest: fail a retest later and it drops back to amber.' },
-              ].map((c, idx) => (
-                <Reveal key={c.s} delay={idx * 0.09}>
-                  <div className="card h-full" style={{ padding: 30 }}>
-                    <div className="flex items-center gap-2.5">
-                      <Pip color={STATUS[c.s]} size={10} />
-                      <span className="t-eyebrow" style={{ color: STATUS[c.s], letterSpacing: '0.2em' }}>
-                        {c.n}
+                { s: 'red' as const, k: 'Red', h: 'No evidence.', b: 'Where every concept starts, and where it returns after a failed retest. Re-reading the chapter nine times does not move it.' },
+                { s: 'amber' as const, k: 'Amber', h: 'Engaged. Unproven.', b: 'You took it to the War Room or sat with the tutor. Zynth records that you met the idea — not that you can use it.' },
+                { s: 'green' as const, k: 'Green', h: 'Proven.', b: 'You passed a quiz on it. The only route to green, and a reversible one: fail a retest later and the verdict is vacated.' },
+              ].map((r, idx) => (
+                <Ink key={r.s} delay={idx * 0.07}>
+                  <div
+                    className="grid items-start gap-4 py-8 md:grid-cols-[130px_minmax(0,1fr)_minmax(0,1.5fr)] md:gap-10"
+                    style={{ borderTop: '1px solid var(--rule)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Dot hue={HUE[r.s]} size={11} />
+                      <span className="t-tag" style={{ color: HUE[r.s], letterSpacing: '0.14em' }}>
+                        {r.k}
                       </span>
                     </div>
-                    <h3 className="display t-card mt-6" style={{ color: INK }}>
-                      {c.h}
-                    </h3>
-                    <p className="t-body mt-3" style={{ color: INK_2 }}>
-                      {c.b}
-                    </p>
+                    <h3 className="serif t-sub">{r.h}</h3>
+                    <p className="t-body">{r.b}</p>
                   </div>
-                </Reveal>
+                </Ink>
               ))}
+              <div className="hair" />
             </div>
 
-            <Reveal delay={0.12}>
-              <div
-                className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-2xl"
-                style={{ background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.08)', padding: '20px 26px' }}
-              >
-                <span className="t-body" style={{ color: INK_3 }}>
-                  Enforced in the database, not the interface:
-                </span>
-                <span className="display t-body flex flex-wrap items-center gap-2.5" style={{ color: INK }}>
-                  <Pip color={STATUS.red} size={8} /> red
-                  <span style={{ color: INK_3 }}>— engage →</span>
-                  <Pip color={STATUS.amber} size={8} /> amber
-                  <span style={{ color: INK_3 }}>— pass a quiz →</span>
-                  <Pip color={STATUS.green} size={8} /> green
-                </span>
-              </div>
-            </Reveal>
+            <Ink delay={0.1}>
+              <p className="mono mt-8" style={{ fontSize: 13, color: 'var(--ink-70)' }}>
+                Enforced by a database trigger, not by the interface — an illegal transition is rejected at the data
+                layer even if something upstream asks for it.
+              </p>
+            </Ink>
           </div>
         </section>
 
-        <hr className="rule-line shell" />
-
-        {/* ─── [02] war room ─────────────────────────────────────────────── */}
-        <section id="warroom" className="band">
-          <div className="shell grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
-            <div>
-              <Chapter
-                index="02"
-                eyebrow="War Room"
-                title={<>Five minds. One stuck concept.</>}
-                lede="Open a weak node and five AI personas argue about it in a live group chat — an analogy, a rigorous definition, a real-world use, and a skeptic trying to break all of it. They talk to each other, not at you."
-              />
-              <Reveal delay={0.1}>
-                <p className="t-body mt-8" style={{ color: INK_3 }}>
-                  When they converge, the node moves red → amber. Understanding, logged as evidence.
-                </p>
-              </Reveal>
-            </div>
-
-            <Reveal delay={0.12}>
-              <div className="card" style={{ padding: 24 }}>
-                <div className="flex items-center justify-between gap-3 pb-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div>
-                    <div className="t-eyebrow">Calculus</div>
-                    <div className="display t-card mt-1.5" style={{ color: INK }}>
-                      Chain Rule
-                    </div>
-                  </div>
-                  <span
-                    className="inline-flex items-center gap-2 rounded-full"
-                    style={{ background: 'rgba(255,176,32,0.1)', border: '1px solid rgba(255,176,32,0.3)', color: STATUS.amber, padding: '6px 12px', fontSize: 12, fontWeight: 600 }}
-                  >
-                    <Pip color={STATUS.amber} size={6} /> Case closed
+        {/* ── 02 war room ────────────────────────────────────────────── */}
+        <section id="e02" className="band">
+          <div className="sheet">
+            <Exhibit
+              n="02"
+              tag="The War Room"
+              title={<>Five minds. One stuck concept.</>}
+              lede="Open a weak node and five AI personas argue it out in front of you — an analogy, a rigorous definition, a real-world use, and a skeptic trying to break all three. They answer each other, not you."
+            />
+            <Ink delay={0.1}>
+              <div className="file mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
+                <div className="flex flex-wrap items-baseline justify-between gap-3 pb-6" style={{ borderBottom: '1px solid var(--rule)' }}>
+                  <span className="t-tag">Transcript — Calculus / Chain Rule</span>
+                  <span className="t-tag" style={{ color: 'var(--amb)' }}>
+                    Verdict: engaged
                   </span>
                 </div>
-
-                <div className="mt-5 flex flex-col gap-3.5">
+                <div className="mt-7 flex flex-col gap-6">
                   {[
-                    { w: 'Analogist', e: '🧩', c: '#52e5e8', m: 'Ok so the chain rule is basically a recipe step — do it out of order and everything after it quietly breaks.' },
-                    { w: 'Purist', e: '📐', c: '#9b7bff', m: "The Analogist's kitchen thing works, but it's more precise to say you're multiplying one rate of change by another." },
-                    { w: 'Real World', e: '🌍', c: '#f2b84b', m: 'Fair point Purist — but this is exactly the step that bites people later in physics.' },
-                    { w: 'Skeptic', e: '🔍', c: '#ff6b81', m: 'Hang on. Does that still hold when the inner function is itself a composition?' },
-                    { w: 'Synthesis', e: '✨', c: '#e8ecff', m: "Skeptic's right to push. Outer rate times inner rate, all the way down. That's the version to keep." },
-                  ].map((b, idx) => (
+                    ['Analogist', 'Ok so the chain rule is basically a recipe step — do it out of order and everything after it quietly breaks.'],
+                    ['Purist', "The Analogist's kitchen thing works, but it's more precise to say you're multiplying one rate of change by another."],
+                    ['Real World', 'Fair point Purist — but this is exactly the step that bites people later in physics.'],
+                    ['Skeptic', 'Hang on. Does that still hold when the inner function is itself a composition?'],
+                    ['Synthesis', "Skeptic's right to push. Outer rate times inner rate, all the way down. That's the version to keep."],
+                  ].map(([who, line], idx) => (
                     <motion.div
-                      key={b.w}
-                      className="flex items-start gap-3"
-                      initial={{ opacity: 0, y: 12 }}
-                      whileInView={{ opacity: 1, y: 0 }}
+                      key={who}
+                      className="grid gap-2 md:grid-cols-[128px_minmax(0,1fr)] md:gap-8"
+                      initial={{ opacity: 0 }}
+                      whileInView={{ opacity: 1 }}
                       viewport={{ once: true, margin: '-40px' }}
-                      transition={{ duration: 0.45, delay: idx * 0.13 }}
+                      transition={{ duration: 0.4, delay: idx * 0.12 }}
                     >
-                      <span
-                        className="flex shrink-0 items-center justify-center rounded-full"
-                        style={{ width: 32, height: 32, fontSize: 14, background: `${b.c}1f`, border: `1px solid ${b.c}3d` }}
-                        aria-hidden
-                      >
-                        {b.e}
-                      </span>
-                      <div className="bubble min-w-0" style={{ background: `${b.c}0f`, borderColor: `${b.c}26` }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: b.c }}>{b.w}</div>
-                        <p className="t-body mt-1" style={{ color: INK_2 }}>
-                          {b.m}
-                        </p>
+                      <div className="t-tag" style={{ paddingTop: 3 }}>
+                        {String(idx + 1).padStart(2, '0')} {who}
                       </div>
+                      <p style={{ fontSize: '1.0625rem', lineHeight: 1.5 }}>{line}</p>
                     </motion.div>
                   ))}
                 </div>
               </div>
-            </Reveal>
+            </Ink>
           </div>
         </section>
 
-        <hr className="rule-line shell" />
-
-        {/* ─── [03] autopsy ──────────────────────────────────────────────── */}
-        <section id="autopsy" className="band">
-          <div className="shell grid items-center gap-14 lg:grid-cols-2 lg:gap-20">
-            <Reveal className="order-2 lg:order-1" delay={0.1}>
-              <div className="card" style={{ padding: 30 }}>
-                <div className="t-eyebrow">Pattern found · 95% confidence</div>
-                <h3 className="display t-card mt-4" style={{ color: '#f5a524' }}>
-                  Sign errors when differentiating
+        {/* ── 03 autopsy ─────────────────────────────────────────────── */}
+        <section id="e03" className="band">
+          <div className="sheet">
+            <Exhibit
+              n="03"
+              tag="The Autopsy Board"
+              title={
+                <>
+                  The mistake <em style={{ fontStyle: 'italic' }}>behind</em> your mistakes.
+                </>
+              }
+              lede="Paste the wrong answers from a past paper. Zynth reads across all of them at once, names the single misconception underneath, and then rewires your graph — drawing edges between the concepts that keep failing together."
+            />
+            <Ink delay={0.1}>
+              <div className="file mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <span className="t-tag">Finding 01 — confidence 0.95</span>
+                  <span className="t-tag">07 mistakes · 03 concepts</span>
+                </div>
+                <h3 className="serif mt-5" style={{ fontSize: 'clamp(1.6rem,3vw,2.4rem)', lineHeight: 1.1 }}>
+                  You drop the negative when the inner function is decreasing.
                 </h3>
-                <p className="t-body mt-4" style={{ color: INK_2 }}>
-                  Seven separate wrong answers across three different topics. One root cause underneath all of them —
-                  you drop the negative when the inner function is decreasing.
+                <p className="t-body mt-5" style={{ maxWidth: '58ch' }}>
+                  Seven separate wrong answers across three topics, one cause. Not carelessness — a rule you learned
+                  with the sign attached to the wrong term.
                 </p>
-                <div className="mt-6 flex flex-col gap-2.5">
+                <div className="mt-8 grid gap-px" style={{ background: 'var(--rule)' }}>
                   {[
                     ['Chain Rule', 'Implicit Differentiation'],
                     ['Implicit Differentiation', 'Related Rates'],
                     ['Chain Rule', 'Related Rates'],
                   ].map(([a, b]) => (
-                    <div
-                      key={`${a}-${b}`}
-                      className="flex flex-wrap items-center gap-2 rounded-xl"
-                      style={{ background: 'rgba(245,165,36,0.07)', border: '1px solid rgba(245,165,36,0.2)', padding: '10px 14px' }}
-                    >
-                      <span className="t-body" style={{ color: INK_3 }}>
-                        connected
-                      </span>
-                      <span className="t-body" style={{ color: INK, fontWeight: 500 }}>
-                        {a}
-                      </span>
-                      <span style={{ color: '#f5a524' }}>↔</span>
-                      <span className="t-body" style={{ color: INK, fontWeight: 500 }}>
-                        {b}
-                      </span>
+                    <div key={`${a}${b}`} className="flex flex-wrap items-center gap-3 bg-transparent py-4" style={{ background: 'var(--pap)' }}>
+                      <span className="t-tag">edge drawn</span>
+                      <span style={{ fontSize: '1.0625rem' }}>{a}</span>
+                      <span style={{ color: 'var(--amb)' }}>↔</span>
+                      <span style={{ fontSize: '1.0625rem' }}>{b}</span>
                     </div>
                   ))}
                 </div>
               </div>
-            </Reveal>
-
-            <div className="order-1 lg:order-2">
-              <Chapter
-                index="03"
-                eyebrow="Autopsy Board"
-                title={
-                  <>
-                    It finds the mistake <span className="ink-grad">behind</span> your mistakes.
-                  </>
-                }
-                lede="Paste your wrong answers from homework or a past paper. Zynth reads across all of them at once, names the single misconception underneath, and then rewires your graph — drawing new edges between the concepts that keep failing together."
-              />
-              <Reveal delay={0.1}>
-                <p className="t-body mt-8" style={{ color: INK_3 }}>
-                  Those connections appear on your map instantly. You never had to notice the pattern yourself.
-                </p>
-              </Reveal>
-            </div>
+            </Ink>
           </div>
         </section>
 
-        <hr className="rule-line shell" />
-
-        {/* ─── [04] the rest ─────────────────────────────────────────────── */}
-        <section className="band">
-          <div className="shell">
-            <Chapter
-              index="04"
-              eyebrow="The rest of the system"
-              title={<>Every part writes to the same map.</>}
-              lede="There's no separate quiz app and no separate notes app. Each module reads from the graph and writes straight back to it."
-            />
-            <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {/* ── 04 the system ──────────────────────────────────────────── */}
+        <section id="e04" className="band">
+          <div className="sheet">
+            <Exhibit n="04" tag="The rest of the file" title={<>Every part writes to the same map.</>} />
+            <div className="mt-14">
               {[
-                { i: '🌌', t: 'Knowledge Graph', b: 'Your syllabus as one living 3D map. Click any node to see exactly what you can and cannot prove.', c: '#52e5e8' },
-                { i: '🎯', t: 'Quiz', b: 'Questions generated for the exact concept you are on, graded instantly. The only path to a green node.', c: '#28e0a0' },
-                { i: '💬', t: 'Explain', b: 'A calm one-to-one tutor that already knows this concept, your mistakes and your trend. You never explain yourself first.', c: '#7bb7ff' },
-                { i: '📡', t: 'Live Co-Pilot', b: 'Watches you take a quiz and interrupts the moment a concept collapses — with a diagnosis, not just a red cross.', c: '#9b7bff', soon: true },
-                { i: '🧭', t: 'Study Plan', b: 'A route across the graph toward your goal that silently re-plans itself every time your mastery changes.', c: '#f5a524', soon: true },
-                { i: '⏱️', t: 'Exam Simulator', b: 'A timed past paper where the agent shows its own reasoning, then maps every lost mark back to a node.', c: '#ff6b81', soon: true },
-              ].map((m, idx) => (
-                <Reveal key={m.t} delay={idx * 0.06}>
-                  <div className="card h-full" style={{ padding: 28, opacity: m.soon ? 0.72 : 1 }}>
-                    <div className="flex items-center justify-between">
-                      <span
-                        className="flex items-center justify-center rounded-xl"
-                        style={{ width: 42, height: 42, fontSize: 19, background: `${m.c}17`, border: `1px solid ${m.c}30` }}
-                        aria-hidden
-                      >
-                        {m.i}
-                      </span>
-                      {m.soon && (
-                        <span className="t-eyebrow" style={{ letterSpacing: '0.18em' }}>
-                          Soon
-                        </span>
-                      )}
+                ['Knowledge Graph', 'Your syllabus as one living 3D map. Click any node to see precisely what you can and cannot prove.', false],
+                ['Quiz', 'Questions generated for the exact concept in front of you, graded on the spot. The only route to green.', false],
+                ['Explain', 'A one-to-one tutor that already holds your file — this concept, your mistakes, your trend. You never brief it first.', false],
+                ['Live Co-Pilot', 'Watches a quiz in progress and interrupts the moment a concept collapses, with a diagnosis rather than a red cross.', true],
+                ['Study Plan', 'A route across the graph toward your goal that re-plans itself every time the evidence changes.', true],
+                ['Exam Simulator', 'A timed past paper where the agent shows its own reasoning, then maps every lost mark back to a node.', true],
+              ].map(([t, b, soon], idx) => (
+                <Ink key={t as string} delay={idx * 0.05}>
+                  <div
+                    className="grid gap-3 py-7 md:grid-cols-[48px_minmax(0,1fr)_minmax(0,1.6fr)] md:gap-10"
+                    style={{ borderTop: '1px solid var(--rule)', opacity: soon ? 0.62 : 1 }}
+                  >
+                    <span className="t-tag pt-1">{String(idx + 1).padStart(2, '0')}</span>
+                    <h3 className="serif t-sub">{t as string}</h3>
+                    <div>
+                      <p className="t-body">{b as string}</p>
+                      {soon ? <span className="t-tag mt-2 inline-block">In progress</span> : null}
                     </div>
-                    <h3 className="display t-card mt-5" style={{ color: INK }}>
-                      {m.t}
-                    </h3>
-                    <p className="t-body mt-3" style={{ color: INK_2 }}>
-                      {m.b}
-                    </p>
                   </div>
-                </Reveal>
+                </Ink>
               ))}
+              <div className="hair" />
             </div>
           </div>
         </section>
 
-        <hr className="rule-line shell" />
-
-        {/* ─── [05] faq ──────────────────────────────────────────────────── */}
-        <section id="faq" className="band">
-          <div className="shell grid gap-14 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
-            <Chapter index="05" eyebrow="Questions" title={<>The obvious ones.</>} />
+        {/* ── 05 questions ───────────────────────────────────────────── */}
+        <section id="e05" className="band">
+          <div className="sheet grid gap-12 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-20">
+            <div>
+              <div className="t-tag">05</div>
+              <h2 className="serif t-sect mt-5">Questions.</h2>
+            </div>
             <div>
               {[
-                ['Do I need an account?', 'No. There is no login, no signup and nothing to install. Open it and your graph is there.'],
-                ['Why can only a quiz turn a node green?', 'Because everything else measures exposure, not understanding. Reading, watching and even a great tutoring session prove that you met the idea — not that you can use it. The quiz is the only thing that produces evidence, so it is the only thing that earns green.'],
-                ['Can a green concept go back to amber?', 'Yes, and that is the point. Retest a proven node and fail it and it drops straight back to amber. Mastery is a claim your graph keeps checking.'],
-                ['Which AI is behind it?', 'Google Gemini runs the War Room debates, the quiz generation, the Autopsy clustering and the tutor. Groq grades the written answers.'],
-                ['Who built this?', 'Adam Ahmed, solo — a 13-year-old founder — as a hackathon build. The whole thing is open source on GitHub.'],
+                ['Do I need an account?', 'No. No login, no signup, nothing to install. Open it and the graph is there.'],
+                ['Why can only a quiz turn a node green?', 'Because everything else measures exposure. Reading, watching, even a genuinely good tutoring session prove you met the idea — not that you can use it under pressure. The quiz is the only step that produces evidence, so it is the only step that earns the verdict.'],
+                ['Can a proven concept go back?', 'Yes, and that is the point. Retest a green node, fail it, and it drops to amber immediately. Mastery is a claim the graph keeps re-checking.'],
+                ['Which models run it?', 'Google Gemini runs the War Room debates, question generation, the Autopsy clustering and the tutor. Groq grades written answers.'],
+                ['Who built this?', 'Adam Ahmed, solo, at thirteen — as a hackathon build. The whole thing is open source.'],
               ].map(([q, a], idx) => {
-                const open = openFaq === idx;
+                const open = openQ === idx;
                 return (
-                  <Reveal key={q} delay={idx * 0.05}>
-                    <div className="faq-item">
-                      <button className="faq-q" onClick={() => setOpenFaq(open ? null : idx)} aria-expanded={open}>
-                        <span className="display t-card" style={{ color: open ? INK : INK_2 }}>
-                          {q}
-                        </span>
-                        <motion.span animate={{ rotate: open ? 45 : 0 }} transition={{ duration: 0.2 }} style={{ color: INK_3, fontSize: 22, lineHeight: 1 }} aria-hidden>
-                          +
-                        </motion.span>
-                      </button>
-                      <motion.div
-                        initial={false}
-                        animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
-                        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                        style={{ overflow: 'hidden' }}
-                      >
-                        <p className="t-body" style={{ color: INK_2, paddingBottom: 24, maxWidth: '60ch' }}>
-                          {a}
-                        </p>
-                      </motion.div>
-                    </div>
-                  </Reveal>
+                  <div key={q}>
+                    <button className="q" onClick={() => setOpenQ(open ? null : idx)} aria-expanded={open}>
+                      <span className="serif" style={{ fontSize: 'clamp(1.2rem,2vw,1.5rem)', lineHeight: 1.2 }}>
+                        {q}
+                      </span>
+                      <span className="t-tag" style={{ paddingTop: 6 }}>
+                        {open ? '−' : '+'}
+                      </span>
+                    </button>
+                    <motion.div
+                      initial={false}
+                      animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
+                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                      style={{ overflow: 'hidden' }}
+                    >
+                      <p className="t-body" style={{ paddingBottom: 26, maxWidth: '62ch' }}>
+                        {a}
+                      </p>
+                    </motion.div>
+                  </div>
                 );
               })}
+              <div className="hair" />
             </div>
           </div>
         </section>
 
-        {/* ─── closing ───────────────────────────────────────────────────── */}
-        <section className="band" style={{ paddingTop: 0 }}>
-          <div className="shell">
-            <Reveal>
-              <div
-                className="relative overflow-hidden rounded-3xl text-center"
-                style={{
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  background: 'linear-gradient(180deg, rgba(82,229,232,0.09), rgba(155,123,255,0.05) 60%, rgba(255,255,255,0.02))',
-                  padding: 'clamp(56px, 8vw, 104px) 24px',
-                }}
-              >
-                <h2 className="display t-sect" style={{ color: INK, maxWidth: '18ch', marginInline: 'auto' }}>
-                  Stop guessing what you know.
-                </h2>
-                <p className="t-lede mt-6" style={{ color: INK_2, maxWidth: '44ch', marginInline: 'auto' }}>
-                  A minute to set up. The map is yours from the first click.
-                </p>
-                <div className="mt-10 flex flex-wrap justify-center gap-3">
-                  <button onClick={onEnter} className="cta cta-solid" style={{ padding: '16px 32px', fontSize: 16 }}>
-                    Open Zynth <span aria-hidden>→</span>
-                  </button>
-                  <button onClick={onStartTour} className="cta cta-ghost" style={{ padding: '16px 26px', fontSize: 16 }}>
-                    Take the tour first
-                  </button>
-                </div>
-                <p className="t-body mt-7" style={{ color: INK_3 }}>
-                  No login. No account. Nothing to install.
-                </p>
+        {/* ── closing ────────────────────────────────────────────────── */}
+        <section className="band">
+          <div className="sheet text-center">
+            <Ink>
+              <h2 className="serif t-sect" style={{ maxWidth: '16ch', marginInline: 'auto' }}>
+                Stop guessing what you know.
+              </h2>
+              <div className="mt-10 flex flex-wrap justify-center gap-3">
+                <button onClick={onEnter} className="btn btn-ink" style={{ padding: '16px 30px' }}>
+                  Open the graph
+                </button>
+                <button onClick={onStartTour} className="btn btn-out" style={{ padding: '16px 24px' }}>
+                  Take the tour
+                </button>
               </div>
-            </Reveal>
+              <p className="t-tag mt-7">No account · nothing installed</p>
+            </Ink>
           </div>
         </section>
       </main>
 
-      {/* ─── footer ──────────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-        <div className="shell flex flex-col gap-6 py-12 sm:flex-row sm:items-end sm:justify-between">
+      <footer style={{ borderTop: '1px solid var(--rule)' }}>
+        <div className="sheet flex flex-col gap-5 py-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="display" style={{ fontSize: 21, letterSpacing: '-0.03em', color: INK }}>
+            <div className="serif" style={{ fontSize: 22 }}>
               Zynth
             </div>
-            <p className="t-body mt-3" style={{ color: INK_3, maxWidth: '46ch' }}>
-              A Student Learning OS built around one living knowledge graph. Built solo by Adam Ahmed. Gemini for the
-              agents, Groq for grading.
+            <p className="t-body mt-2" style={{ maxWidth: '44ch' }}>
+              A Student Learning OS built on one living knowledge graph. Gemini for the agents, Groq for grading.
             </p>
           </div>
-          <div className="flex items-center gap-7">
-            <a href="https://github.com/AdamACE9/zynth" target="_blank" rel="noreferrer noopener" className="t-body" style={{ color: INK_3 }}>
+          <div className="flex items-center gap-6">
+            <a href="https://github.com/AdamACE9/zynth" target="_blank" rel="noreferrer noopener" className="t-tag">
               GitHub ↗
             </a>
-            <button onClick={onEnter} className="t-body" style={{ color: INK_3 }}>
+            <button onClick={onEnter} className="t-tag">
               Open the app
             </button>
           </div>
