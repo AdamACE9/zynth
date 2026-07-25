@@ -1,0 +1,480 @@
+/* ---------------------------------------------------------------------------
+   Zynth onboarding — scoped under .zynth-ob so nothing leaks into the app
+   shell. All tokens come from index.css.
+
+   EVERY size / shadow / gradient that needs a comma lives HERE as real CSS.
+   Tailwind v4 silently DROPS arbitrary values containing commas, so
+   `text-[clamp(2rem,4.4vw,2.6rem)]` compiles to literally nothing and the
+   element falls back to 16px with a 15.68px line-height (tiny AND overlapping).
+   Do not move any of this back into class names.
+   --------------------------------------------------------------------------- */
+
+.zynth-ob {
+  position: relative;
+}
+
+/* -- Shell ------------------------------------------------------------------
+   Two-column product tour on desktop: a numbered narrative rail + the step.
+   Collapses to a single column with a slim numbered header under 1024px.
+   --------------------------------------------------------------------------- */
+
+.zynth-ob .ob-shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  /* minmax(0, 1fr) is LOAD-BEARING. With an implicit auto row the track sizes
+     to its content, blows straight past max-height and the shell clips the
+     footer. Constraining the row is what lets .ob-pad scroll internally on
+     short viewports. Verified in-browser: auto row => pad clientHeight 2000px
+     inside a 300px shell; minmax(0,1fr) => 210px with a real scrollbar. */
+  grid-template-rows: minmax(0, 1fr);
+  width: 100%;
+  max-width: 980px;
+  max-height: calc(100vh - 24px);
+  overflow: hidden;
+  border: 1px solid var(--border-glass);
+  border-radius: 22px;
+  background: var(--surface-glass-strong);
+  backdrop-filter: blur(26px);
+  -webkit-backdrop-filter: blur(26px);
+  box-shadow:
+    0 48px 130px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.02),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+@media (min-width: 640px) {
+  .zynth-ob .ob-shell {
+    max-height: calc(100vh - 48px);
+  }
+}
+
+@media (min-width: 1024px) {
+  .zynth-ob .ob-shell {
+    grid-template-columns: 272px minmax(0, 1fr);
+  }
+}
+
+@supports (height: 100dvh) {
+  .zynth-ob .ob-shell {
+    max-height: calc(100dvh - 24px);
+  }
+
+  @media (min-width: 640px) {
+    .zynth-ob .ob-shell {
+      max-height: calc(100dvh - 48px);
+    }
+  }
+}
+
+/* A single hairline of accent along the very top edge — the only decoration. */
+.zynth-ob .ob-shell::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(82, 229, 232, 0.55) 30%,
+    rgba(155, 123, 255, 0.45) 62%,
+    transparent
+  );
+}
+
+/* -- Narrative rail ---------------------------------------------------------- */
+
+.zynth-ob .ob-rail {
+  display: none;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 34px 24px 26px;
+  border-right: 1px solid var(--border-glass);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 60%);
+}
+
+@media (min-width: 1024px) {
+  .zynth-ob .ob-rail {
+    display: flex;
+  }
+}
+
+.zynth-ob .ob-step {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px 10px 13px;
+  border: 0;
+  border-left: 2px solid transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13.5px;
+  line-height: 1.3;
+  text-align: left;
+  transition:
+    color 150ms ease-out,
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
+}
+
+.zynth-ob .ob-step:not(:disabled) {
+  cursor: pointer;
+}
+
+.zynth-ob .ob-step:not(:disabled):hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.zynth-ob .ob-step[data-state='done'] {
+  color: var(--text-secondary);
+}
+
+.zynth-ob .ob-step[data-state='active'] {
+  color: var(--text-primary);
+  font-weight: 600;
+  border-left-color: var(--accent-cyan);
+  background: rgba(82, 229, 232, 0.08);
+}
+
+.zynth-ob .ob-step-n {
+  flex-shrink: 0;
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
+
+.zynth-ob .ob-step[data-state='active'] .ob-step-n {
+  color: var(--accent-cyan);
+  opacity: 1;
+}
+
+.zynth-ob .ob-step[data-state='done'] .ob-step-n {
+  color: var(--accent-cyan);
+  opacity: 0.75;
+}
+
+/* -- Type scale -------------------------------------------------------------
+   Deliberately dramatic: 32-42px headings against 11px uppercase eyebrows.
+   Nothing sits at a mushy middle 14px.
+   --------------------------------------------------------------------------- */
+
+.zynth-ob .ob-display {
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.032em;
+  color: var(--text-primary);
+}
+
+.zynth-ob .ob-h1 {
+  font-size: clamp(2rem, 4.4vw, 2.625rem);
+  line-height: 1.08;
+}
+
+.zynth-ob .ob-h2 {
+  font-size: clamp(1.75rem, 3.6vw, 2.25rem);
+  line-height: 1.12;
+}
+
+.zynth-ob .ob-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  line-height: 1.4;
+  color: var(--accent-cyan);
+}
+
+.zynth-ob .ob-eyebrow-quiet {
+  color: var(--text-muted);
+}
+
+.zynth-ob .ob-lede {
+  font-size: 1rem;
+  line-height: 1.62;
+  color: var(--text-secondary);
+}
+
+.zynth-ob .ob-body {
+  font-size: 0.875rem;
+  line-height: 1.62;
+  color: var(--text-secondary);
+}
+
+.zynth-ob .ob-micro {
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.zynth-ob .ob-num {
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-cyan);
+}
+
+.zynth-ob .ob-rule {
+  height: 1px;
+  border: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0));
+}
+
+/* -- Step column ------------------------------------------------------------- */
+
+.zynth-ob .ob-pad {
+  padding: 26px 22px;
+}
+
+@media (min-width: 640px) {
+  .zynth-ob .ob-pad {
+    padding: 40px 40px 36px;
+  }
+}
+
+.zynth-ob .ob-foot {
+  padding: 16px 22px;
+  border-top: 1px solid var(--border-glass);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.02));
+}
+
+@media (min-width: 640px) {
+  .zynth-ob .ob-foot {
+    padding: 18px 40px;
+  }
+}
+
+.zynth-ob .ob-head-m {
+  padding: 16px 22px 14px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+/* -- Controls ---------------------------------------------------------------- */
+
+.zynth-ob .ob-field {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  /* 16px: anything smaller triggers iOS focus-zoom. */
+  font-size: 16px;
+  line-height: 1.4;
+  outline: none;
+  transition:
+    border-color 150ms ease-out,
+    background-color 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+.zynth-ob .ob-field::placeholder {
+  color: rgba(240, 243, 253, 0.33);
+}
+
+.zynth-ob .ob-field:focus {
+  border-color: var(--accent-cyan);
+  background: rgba(82, 229, 232, 0.05);
+  box-shadow: 0 0 0 3px rgba(82, 229, 232, 0.16);
+}
+
+.zynth-ob .ob-chip {
+  border: 1px solid var(--border-glass);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 9px 16px;
+  font-size: 13.5px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  transition:
+    color 150ms ease-out,
+    border-color 150ms ease-out,
+    background-color 150ms ease-out,
+    box-shadow 150ms ease-out;
+}
+
+.zynth-ob .ob-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-glass-hover);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.zynth-ob .ob-chip[aria-pressed='true'] {
+  color: var(--text-primary);
+  border-color: rgba(82, 229, 232, 0.7);
+  background: rgba(82, 229, 232, 0.13);
+  box-shadow: 0 0 22px rgba(82, 229, 232, 0.14);
+}
+
+.zynth-ob .ob-chip-sm {
+  padding: 7px 13px;
+  font-size: 12.5px;
+}
+
+.zynth-ob .ob-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent-cyan);
+  color: #04050a;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  padding: 13px 24px;
+  box-shadow: 0 12px 34px rgba(82, 229, 232, 0.2);
+  transition:
+    filter 150ms ease-out,
+    box-shadow 150ms ease-out,
+    transform 80ms ease-out;
+}
+
+.zynth-ob .ob-cta:hover {
+  filter: brightness(1.07);
+  box-shadow: 0 14px 40px rgba(82, 229, 232, 0.3);
+}
+
+.zynth-ob .ob-cta:active {
+  transform: scale(0.985);
+}
+
+.zynth-ob .ob-ghost {
+  border: 1px solid var(--border-glass);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-secondary);
+  font-size: 14px;
+  padding: 12px 18px;
+  transition:
+    color 150ms ease-out,
+    border-color 150ms ease-out,
+    background-color 150ms ease-out;
+}
+
+.zynth-ob .ob-ghost:hover {
+  color: var(--text-primary);
+  border-color: var(--border-glass-hover);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.zynth-ob .ob-quiet {
+  color: var(--text-muted);
+  font-size: 12.5px;
+  transition: color 150ms ease-out;
+}
+
+.zynth-ob .ob-quiet:hover {
+  color: var(--text-primary);
+}
+
+/* -- Step 02: the mastery demo ------------------------------------------------ */
+
+.zynth-ob .ob-stage {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 11px;
+  opacity: 0.42;
+  transition:
+    opacity 260ms ease-out,
+    background-color 260ms ease-out;
+}
+
+.zynth-ob .ob-stage[data-active='true'] {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.zynth-ob .ob-stage-term {
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+.zynth-ob .ob-stage-gloss {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.zynth-ob .ob-demo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border-glass);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 11px 17px;
+  transition:
+    color 160ms ease-out,
+    background-color 160ms ease-out,
+    border-color 160ms ease-out,
+    opacity 160ms ease-out;
+}
+
+.zynth-ob .ob-demo-btn:disabled {
+  opacity: 0.3;
+}
+
+.zynth-ob .ob-demo-btn[data-live='true'] {
+  color: #04050a;
+  background: var(--accent-cyan);
+  border-color: transparent;
+  animation: ob-invite 2.6s ease-out infinite;
+}
+
+.zynth-ob .ob-demo-btn[data-live='true']:hover {
+  filter: brightness(1.07);
+}
+
+@keyframes ob-invite {
+  0% {
+    box-shadow: 0 0 0 0 rgba(82, 229, 232, 0.42);
+  }
+  70% {
+    box-shadow: 0 0 0 13px rgba(82, 229, 232, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(82, 229, 232, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zynth-ob .ob-demo-btn[data-live='true'] {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(82, 229, 232, 0.22);
+  }
+}
+
+/* -- Progress (mobile header) -------------------------------------------------- */
+
+.zynth-ob .ob-tick {
+  height: 3px;
+  flex: 1 1 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: background-color 320ms ease-out;
+}
+
+.zynth-ob .ob-tick[data-on='true'] {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(82, 229, 232, 0.45);
+}

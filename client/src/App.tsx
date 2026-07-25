@@ -51,44 +51,26 @@ export default function App() {
     document.body.dataset.view = view;
   }, [view]);
 
+  // NOTE: deliberately NOT <AnimatePresence mode="wait">. That waits for the
+  // outgoing view's exit animation to finish before mounting the next one, and
+  // if any nested motion element never settles the exit never completes — the
+  // view state flips to 'graph' while the DOM keeps showing onboarding forever
+  // (i.e. "Open Zynth" silently does nothing). Keying the incoming view and
+  // animating enter-only can't deadlock.
   return (
-    <AnimatePresence mode="wait">
-      {view === 'landing' && (
-        <motion.div
-          key="landing"
-          className="h-full w-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.25 } }}
-        >
-          <Landing onEnter={enterApp} onStartTour={startOnboarding} />
-        </motion.div>
-      )}
-
+    <motion.div
+      key={view}
+      className="h-full w-full"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: view === 'graph' ? 0.4 : 0.25 }}
+    >
+      {view === 'landing' && <Landing onEnter={enterApp} onStartTour={startOnboarding} />}
       {view === 'onboarding' && (
-        <motion.div
-          key="onboarding"
-          className="h-full w-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.25 } }}
-        >
-          <Onboarding onComplete={completeOnboarding} onSkip={skipOnboarding} onBackToSite={goLanding} />
-        </motion.div>
+        <Onboarding onComplete={completeOnboarding} onSkip={skipOnboarding} onBackToSite={goLanding} />
       )}
-
-      {view === 'graph' && (
-        <motion.div
-          key="graph"
-          className="h-full w-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1, transition: { duration: 0.4 } }}
-          exit={{ opacity: 0, transition: { duration: 0.2 } }}
-        >
-          <GraphApp />
-        </motion.div>
-      )}
-    </AnimatePresence>
+      {view === 'graph' && <GraphApp />}
+    </motion.div>
   );
 }
 
@@ -120,6 +102,14 @@ function GraphApp() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // The r3f canvas mounts a beat after this view does, and some embedded
+  // webviews never fire the initial ResizeObserver — leaving it at 300x150.
+  // A few staggered nudges guarantee it measures once it exists.
+  useEffect(() => {
+    const timers = [80, 350, 900].map((ms) => window.setTimeout(() => window.dispatchEvent(new Event('resize')), ms));
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   function dismissHint() {
@@ -162,7 +152,10 @@ function GraphApp() {
 
       {/* Loading / empty states — never leave the user staring at an unexplained void. */}
       <AnimatePresence>
-        {loading && nodes.length === 0 && (
+        {/* Still fetching, OR fetched-with-content that hasn't propagated into
+            live state yet. Without the second clause the "can't reach the
+            server" panel flashes for a frame on a perfectly good load. */}
+        {nodes.length === 0 && (loading || (initialGraph?.nodes.length ?? 0) > 0) && (
           <motion.div
             key="graph-loading"
             className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center"
@@ -184,7 +177,7 @@ function GraphApp() {
           </motion.div>
         )}
 
-        {!loading && nodes.length === 0 && (
+        {!loading && nodes.length === 0 && (initialGraph?.nodes.length ?? 0) === 0 && (
           <motion.div
             key="graph-empty"
             className="absolute inset-0 z-10 flex items-center justify-center p-6"
