@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { motion } from 'motion/react';
 import type { ErrorType, MistakeRecord } from '@zynth/shared';
 import { fetchGraph, runAutopsy } from '../lib/api';
 import { getSocket } from '../lib/socket';
+import './rooms.css';
 
 export interface AutopsyProps {
   onClose: () => void;
@@ -50,12 +52,20 @@ const ERROR_TYPE_META: Record<ErrorType, { label: string; color: string }> = {
   prerequisite_gap: { label: 'Prerequisite Gap', color: 'var(--accent-violet)' },
 };
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 /**
  * Full-screen Autopsy Board overlay. Paste (or load a sample of) raw
  * homework/test mistakes, run them through POST /api/autopsy, and watch
  * Zynth extract each mistake onto a concept node, cluster recurring failure
  * patterns across nodes, and wire up `correlated_error` edges live — the
  * graph behind this overlay redraws those edges itself via useLiveGraph.
+ *
+ * Visual intent: a diagnostic report, not a form. Findings are numbered and
+ * lead with a large pattern statement; the "Zynth connected X ↔ Y" lines are
+ * given real weight because they are the moment the product earns its claim.
  */
 export function Autopsy({ onClose }: AutopsyProps) {
   const [text, setText] = useState('');
@@ -92,6 +102,14 @@ export function Autopsy({ onClose }: AutopsyProps) {
       socket.off('autopsy:progress', handleProgress);
     };
   }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   function labelFor(nodeId: string): string {
     return nodeLabels[nodeId] ?? nodeId;
@@ -130,174 +148,263 @@ export function Autopsy({ onClose }: AutopsyProps) {
     return result.mistakes.filter((m) => !clustered.has(m.id));
   }, [result]);
 
+  const trimmedLength = text.trim().length;
+  const lineCount = text.trim().length === 0 ? 0 : text.trim().split(/\r?\n+/).filter(Boolean).length;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-30 flex flex-col overflow-y-auto bg-black/70 backdrop-blur-md"
+      className="rm-scrim rm-page flex flex-col"
+      style={{ '--rm-accent': 'var(--accent-cyan)' } as CSSProperties}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Autopsy Board"
     >
-      <Header onClose={onClose} />
+      {/* ---- Header --------------------------------------------------------- */}
+      <header className="rm-rule-b flex-shrink-0">
+        <div className="rm-pad rm-band-sm mx-auto flex w-full max-w-4xl items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="rm-eyebrow">Whole-graph diagnosis</div>
+            <h1 className="rm-title mt-1.5">Autopsy Board</h1>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <span className="rm-micro hidden sm:inline">Esc</span>
+            <button type="button" onClick={onClose} className="rm-icon-btn" aria-label="Close autopsy board">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+        </div>
+      </header>
 
-      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-6 pb-16 pt-6">
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass-panel px-5 py-5"
-        >
-          <div className="flex items-center justify-between">
-            <div className="section-label">Paste mistakes</div>
-            <button
-              onClick={() => setText(SAMPLE_TEXT)}
+      {/* ---- Body ----------------------------------------------------------- */}
+      <div className="rm-scroll flex-1">
+        <div className="rm-pad mx-auto flex w-full max-w-4xl flex-col gap-10 py-8 sm:gap-12 sm:py-12">
+          {/* Statement of intent — hidden once results take over the screen. */}
+          {!result && (
+            <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+              <h2 className="rm-display max-w-2xl">Find the one mistake behind all the others.</h2>
+              <p className="rm-lead mt-4 max-w-xl">
+                Paste mistakes from homework or a past test. Zynth extracts each one onto a concept, finds the
+                pattern they share, and draws the new connections straight onto your graph.
+              </p>
+            </motion.section>
+          )}
+
+          {/* ---- Input ------------------------------------------------------ */}
+          <motion.section initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="rm-eyebrow rm-eyebrow-accent">
+                {result ? 'Run another autopsy' : 'Step 01 · Paste your mistakes'}
+              </div>
+              <button
+                type="button"
+                onClick={() => setText(SAMPLE_TEXT)}
+                disabled={running}
+                className="rm-btn rm-btn-ghost"
+                style={{ padding: '7px 13px', fontSize: 12 }}
+              >
+                Load sample mistakes
+              </button>
+            </div>
+
+            <textarea
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               disabled={running}
-              className="glass-chip btn-chip px-3 py-1.5 text-xs font-medium disabled:opacity-50"
+              placeholder="Paste homework, quiz, or test mistakes here — one per line works well…"
+              rows={8}
+              className="rm-field mt-4"
+              aria-label="Mistakes to analyze"
+            />
+
+            <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="rm-micro rm-num">
+                {trimmedLength === 0
+                  ? 'Nothing to analyze yet.'
+                  : `${trimmedLength} character${trimmedLength === 1 ? '' : 's'} · ${lineCount} line${lineCount === 1 ? '' : 's'} ready`}
+              </span>
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={!text.trim() || running}
+                className="rm-btn rm-btn-solid"
+              >
+                {running ? 'Analyzing…' : 'Run autopsy'}
+              </button>
+            </div>
+          </motion.section>
+
+          {/* ---- Progress --------------------------------------------------- */}
+          {running && (
+            <motion.section
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rm-rule-t pt-8"
+              aria-live="polite"
             >
-              Load sample mistakes
-            </button>
-          </div>
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={running}
-            placeholder="Paste homework, quiz, or test mistakes here — one per line works well…"
-            rows={8}
-            className="glass-chip mt-3 w-full resize-none rounded-lg px-3.5 py-3 text-sm outline-none placeholder:text-white/25 disabled:opacity-60"
-            style={{ color: 'var(--text-primary)' }}
-          />
-          <div className="mt-3 flex items-center justify-between">
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              {text.trim().length === 0 ? 'Nothing to analyze yet.' : `${text.trim().split(/\r?\n+/).filter(Boolean).length} line(s) ready.`}
-            </span>
-            <button
-              onClick={handleAnalyze}
-              disabled={!text.trim() || running}
-              className="btn-primary px-6 py-2.5 text-sm font-semibold"
+              <div className="flex items-center gap-3">
+                <div className="rm-spinner h-4 w-4" aria-hidden="true" />
+                <span className="rm-eyebrow rm-eyebrow-accent">Autopsy in progress</span>
+              </div>
+              <div className="mt-5 flex flex-col gap-3">
+                {progress.length === 0 && <span className="rm-micro">Waking up the diagnosis agent…</span>}
+                {progress.map((line, i) => {
+                  const isActive = i === progress.length - 1;
+                  return (
+                    <motion.div
+                      key={`${i}-${line}`}
+                      initial={{ opacity: 0, x: -6 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="ap-step"
+                      data-active={isActive ? 'true' : 'false'}
+                    >
+                      <span className="ap-step-mark" aria-hidden="true">
+                        {isActive ? '●' : '✓'}
+                      </span>
+                      <span
+                        className="rm-micro rm-wrap"
+                        style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                      >
+                        {line}
+                      </span>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.section>
+          )}
+
+          {error && (
+            <div
+              className="rounded-xl border px-4 py-3"
+              style={{ borderColor: 'var(--status-amber)' }}
+              role="alert"
             >
-              {running ? 'Analyzing…' : 'Analyze'}
-            </button>
-          </div>
-        </motion.div>
-
-        {running && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="glass-panel flex flex-col gap-2 px-5 py-5"
-          >
-            <div className="flex items-center gap-3">
-              <div className="relative h-4 w-4 shrink-0">
-                <div
-                  className="absolute inset-0 animate-spin rounded-full border-2 border-transparent"
-                  style={{ borderTopColor: 'var(--accent-cyan)', borderRightColor: 'var(--accent-cyan)' }}
-                />
-              </div>
-              <span className="section-label">Autopsy in progress</span>
+              <span className="rm-micro" style={{ color: 'var(--status-amber)' }}>
+                {error}
+              </span>
             </div>
-            <div className="flex flex-col gap-1.5 pl-7">
-              {progress.length === 0 && (
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  Waking up the diagnosis agent…
-                </span>
-              )}
-              {progress.map((line, i) => (
-                <motion.span
-                  key={`${i}-${line}`}
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="text-xs"
-                  style={{ color: i === progress.length - 1 ? 'var(--text-secondary)' : 'var(--text-muted)' }}
-                >
-                  {line}
-                </motion.span>
-              ))}
-            </div>
-          </motion.div>
-        )}
+          )}
 
-        {error && (
-          <div className="glass-chip px-4 py-2 text-xs" style={{ color: 'var(--status-amber)' }}>
-            {error}
-          </div>
-        )}
-
-        {result && !running && (
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col gap-5">
-            <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
-              <span>{result.mistakes.length} mistake{result.mistakes.length === 1 ? '' : 's'} extracted</span>
-              <span>·</span>
-              <span>{result.clusters.length} pattern{result.clusters.length === 1 ? '' : 's'} found</span>
-              <span>·</span>
-              <span>{result.new_nodes.length} new node{result.new_nodes.length === 1 ? '' : 's'}</span>
-              <span>·</span>
-              <span>{result.new_edges.length} new connection{result.new_edges.length === 1 ? '' : 's'}</span>
-            </div>
-
-            {result.clusters.length === 0 && (
-              <div className="glass-panel px-5 py-6 text-center text-sm" style={{ color: 'var(--text-secondary)' }}>
-                No recurring cross-concept pattern yet — each mistake looks like an isolated issue so far. Paste more
-                mistakes over time and Autopsy will surface a pattern once one exists.
-              </div>
-            )}
-
-            {result.clusters.map((cluster, idx) => (
-              <ClusterCard
-                key={`${cluster.pattern_label}-${idx}`}
-                cluster={cluster}
-                edges={result.new_edges.filter(
-                  (e) => cluster.node_ids.includes(e.source_node_id) && cluster.node_ids.includes(e.target_node_id),
-                )}
-                mistakes={result.mistakes.filter((m) => cluster.node_ids.includes(m.node_id))}
-                labelFor={labelFor}
-                delay={idx * 0.08}
-              />
-            ))}
-
-            {uncategorized.length > 0 && (
-              <div className="glass-panel px-5 py-5">
-                <div className="section-label">Not yet part of a pattern</div>
-                <div className="mt-3 flex flex-col gap-2">
-                  {uncategorized.map((m) => (
-                    <MistakeRow key={m.id} mistake={m} label={labelFor(m.node_id)} />
-                  ))}
+          {/* ---- Findings --------------------------------------------------- */}
+          {result && !running && (
+            <motion.section
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rm-rule-t flex flex-col gap-10 pt-10 sm:gap-12"
+              aria-live="polite"
+            >
+              <div>
+                <div className="rm-eyebrow rm-eyebrow-accent">Diagnosis complete</div>
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Stat value={result.mistakes.length} label="Mistakes read" />
+                  <Stat value={result.clusters.length} label="Patterns found" accent />
+                  <Stat value={result.new_edges.length} label="Connections drawn" accent />
+                  <Stat value={result.new_nodes.length} label="New concepts" />
                 </div>
               </div>
-            )}
-          </motion.div>
-        )}
+
+              {result.clusters.length === 0 && (
+                <div>
+                  <h3 className="rm-subtitle">No recurring pattern yet.</h3>
+                  <p className="rm-body mt-2 max-w-xl">
+                    Each mistake still looks like an isolated issue. Paste more mistakes over time and Autopsy
+                    will surface a pattern the moment one exists.
+                  </p>
+                </div>
+              )}
+
+              {result.clusters.map((cluster, idx) => (
+                <ClusterCard
+                  key={`${cluster.pattern_label}-${idx}`}
+                  index={idx}
+                  cluster={cluster}
+                  edges={result.new_edges.filter(
+                    (e) => cluster.node_ids.includes(e.source_node_id) && cluster.node_ids.includes(e.target_node_id),
+                  )}
+                  mistakes={result.mistakes.filter((m) => cluster.node_ids.includes(m.node_id))}
+                  labelFor={labelFor}
+                  delay={idx * 0.08}
+                />
+              ))}
+
+              {result.new_nodes.length > 0 && (
+                <div>
+                  <div className="rm-eyebrow">New concepts discovered</div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {result.new_nodes.map((n) => (
+                      <span
+                        key={n.id}
+                        className="rm-tag"
+                        style={{
+                          color: 'var(--text-primary)',
+                          textTransform: 'none',
+                          letterSpacing: '-0.01em',
+                          fontSize: 13,
+                          padding: '7px 12px',
+                        }}
+                      >
+                        <span className="rm-dot" style={{ background: 'var(--accent-violet)' }} />
+                        {n.label}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {uncategorized.length > 0 && (
+                <div>
+                  <div className="rm-eyebrow">Not yet part of a pattern</div>
+                  <div className="mt-4 flex flex-col gap-2">
+                    {uncategorized.map((m) => (
+                      <MistakeRow key={m.id} mistake={m} label={labelFor(m.node_id)} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="rm-rule-t flex flex-col items-start gap-4 pt-8">
+                <p className="rm-subtitle max-w-xl">
+                  {result.new_edges.length > 0
+                    ? `${result.new_edges.length} new connection${result.new_edges.length === 1 ? '' : 's'} ${result.new_edges.length === 1 ? 'is' : 'are'} now live on your graph.`
+                    : 'Analysis complete — your graph reflects the latest data.'}
+                </p>
+                <button type="button" onClick={onClose} className="rm-btn rm-btn-solid">
+                  <span aria-hidden="true">←</span> Back to graph
+                </button>
+              </div>
+            </motion.section>
+          )}
+        </div>
       </div>
     </motion.div>
   );
 }
 
-function Header({ onClose }: { onClose: () => void }) {
+function Stat({ value, label, accent }: { value: number; label: string; accent?: boolean }) {
   return (
-    <div className="sticky top-0 z-10 border-b border-white/5 bg-black/30 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-5">
-        <div>
-          <div className="section-label">Whole-graph diagnosis</div>
-          <h1 className="font-display mt-1 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Autopsy Board
-          </h1>
-        </div>
-        <button
-          onClick={onClose}
-          className="glass-chip btn-chip flex h-9 w-9 items-center justify-center text-sm"
-          aria-label="Close autopsy board"
-        >
-          {'✕'}
-        </button>
-      </div>
+    <div className="ap-stat">
+      <span className="ap-stat-value" style={accent ? { color: 'var(--accent-cyan)' } : undefined}>
+        {pad2(value)}
+      </span>
+      <span className="rm-eyebrow" style={{ fontSize: 10 }}>
+        {label}
+      </span>
     </div>
   );
 }
 
 function ClusterCard({
+  index,
   cluster,
   edges,
   mistakes,
   labelFor,
   delay,
 }: {
+  index: number;
   cluster: AutopsyCluster;
   edges: AutopsyEdge[];
   mistakes: MistakeRecord[];
@@ -306,77 +413,111 @@ function ClusterCard({
 }) {
   const meta = ERROR_TYPE_META[cluster.error_type] ?? ERROR_TYPE_META.concept_gap;
   const confidencePct = Math.round(cluster.confidence * 100);
+  const excerpts =
+    cluster.example_excerpts.length > 0
+      ? cluster.example_excerpts
+      : mistakes.slice(0, 3).map((m) => m.raw_excerpt);
+
+  // Animate the confidence bar in from zero on mount.
+  const [barPct, setBarPct] = useState(0);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setBarPct(confidencePct));
+    return () => cancelAnimationFrame(raf);
+  }, [confidencePct]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
+    <motion.article
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
-      className="glass-panel px-5 py-5"
-      style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.45), inset 0 1px 0 var(--border-inner-highlight), 0 0 40px rgba(255,59,92,0.08)' }}
+      className="ap-finding"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <span
-          className="glass-chip inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium"
-          style={{ color: meta.color }}
-        >
-          <span
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: meta.color, boxShadow: `0 0 8px ${meta.color}` }}
-          />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="rm-eyebrow rm-num">Finding {pad2(index + 1)}</span>
+        <span className="rm-tag" style={{ color: meta.color }}>
+          <span className="rm-dot" style={{ background: meta.color }} />
           {meta.label}
         </span>
-        <span className="glass-chip px-2.5 py-1 text-xs font-medium" style={{ color: 'var(--accent-cyan)' }}>
-          {confidencePct}% confidence
-        </span>
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          spans {cluster.node_ids.length} concepts
-        </span>
+        <span className="rm-tag rm-num">Spans {cluster.node_ids.length} concepts</span>
       </div>
 
-      <h3 className="font-display mt-3 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-        {cluster.pattern_label}
-      </h3>
-      <p className="mt-1.5 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-        {cluster.description}
-      </p>
+      <h3 className="ap-pattern mt-4">{cluster.pattern_label}</h3>
+      <p className="rm-body rm-wrap mt-3 max-w-2xl">{cluster.description}</p>
+
+      <div className="mt-6 max-w-xs">
+        <div className="flex items-baseline justify-between">
+          <span className="rm-eyebrow" style={{ fontSize: 10 }}>
+            Confidence
+          </span>
+          <span className="rm-num" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-cyan)' }}>
+            {confidencePct}%
+          </span>
+        </div>
+        <div
+          className="ap-confidence mt-2"
+          role="meter"
+          aria-valuenow={confidencePct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Pattern confidence"
+        >
+          <span className="ap-confidence-fill" style={{ width: `${barPct}%` }} />
+        </div>
+      </div>
 
       {edges.length > 0 && (
-        <div className="mt-3 flex flex-col gap-1.5">
-          {edges.map((e) => (
-            <div key={e.id} className="flex items-center gap-2 text-xs" style={{ color: 'var(--accent-cyan)' }}>
-              <span aria-hidden="true">✦</span>
-              Zynth connected {labelFor(e.source_node_id)} ↔ {labelFor(e.target_node_id)}
-            </div>
-          ))}
+        <div className="mt-7">
+          <div className="rm-eyebrow rm-eyebrow-accent">
+            {edges.length === 1 ? 'Connection drawn' : `${edges.length} connections drawn`}
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {edges.map((e) => (
+              <div key={e.id} className="ap-link">
+                <span className="ap-link-node">{labelFor(e.source_node_id)}</span>
+                <span className="ap-link-arrow" aria-hidden="true">
+                  ↔
+                </span>
+                <span className="ap-link-node">{labelFor(e.target_node_id)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {(cluster.example_excerpts.length > 0 ? cluster.example_excerpts : mistakes.map((m) => m.raw_excerpt)).length >
-        0 && (
-        <div className="mt-4 flex flex-col gap-2 border-t border-white/5 pt-3">
-          {(cluster.example_excerpts.length > 0
-            ? cluster.example_excerpts
-            : mistakes.slice(0, 3).map((m) => m.raw_excerpt)
-          ).map((excerpt, i) => (
-            <div key={i} className="glass-chip px-3 py-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
-              &ldquo;{excerpt}&rdquo;
-            </div>
-          ))}
+      {excerpts.length > 0 && (
+        <div className="mt-7">
+          <div className="rm-eyebrow" style={{ fontSize: 10 }}>
+            Evidence
+          </div>
+          <div className="mt-3 flex flex-col gap-2">
+            {excerpts.map((excerpt, i) => (
+              <p key={i} className="ap-quote">
+                &ldquo;{excerpt}&rdquo;
+              </p>
+            ))}
+          </div>
         </div>
       )}
-    </motion.div>
+    </motion.article>
   );
 }
 
 function MistakeRow({ mistake, label }: { mistake: MistakeRecord; label: string }) {
   const meta = ERROR_TYPE_META[mistake.error_type] ?? ERROR_TYPE_META.concept_gap;
   return (
-    <div className="glass-chip flex items-start gap-2 px-3 py-2 text-xs">
-      <span className="mt-0.5 shrink-0 font-medium" style={{ color: meta.color }}>
+    <div
+      className="flex flex-col gap-1.5 rounded-xl px-4 py-3 sm:flex-row sm:gap-4"
+      style={{ border: '1px solid var(--border-glass)', background: 'rgba(255, 255, 255, 0.022)' }}
+    >
+      <span
+        className="rm-eyebrow flex-shrink-0 sm:w-40"
+        style={{ color: meta.color, fontSize: 10 }}
+      >
         {label}
       </span>
-      <span style={{ color: 'var(--text-secondary)' }}>{mistake.raw_excerpt}</span>
+      <span className="rm-micro rm-wrap min-w-0" style={{ color: 'var(--text-secondary)' }}>
+        {mistake.raw_excerpt}
+      </span>
     </div>
   );
 }

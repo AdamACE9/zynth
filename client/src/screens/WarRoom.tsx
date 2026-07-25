@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Node, ServerToClientEvents, Status, WarRoomOutcome, WarRoomPersona } from '@zynth/shared';
 import { STATUS_COLORS } from '@zynth/shared';
 import { startWarRoomStream } from '../lib/api';
 import { getSocket } from '../lib/socket';
+import './rooms.css';
 
 export interface WarRoomProps {
   node: Node;
@@ -17,6 +19,7 @@ type SeatPhase = 'idle' | 'active' | 'done';
 interface SeatState {
   phase: SeatPhase;
   text: string;
+  startedAt: number | null;
 }
 
 /** Fixed debate order — mirrors server/src/agents/warRoomStream.ts WAR_ROOM_SEQUENCE. */
@@ -24,41 +27,36 @@ const SEAT_ORDER: WarRoomPersona[] = ['analogist', 'purist', 'real_world', 'skep
 
 const SEAT_META: Record<
   WarRoomPersona,
-  { label: string; emoji: string; accent: string; glow: string; tagline: string }
+  { label: string; short: string; accent: string; tagline: string }
 > = {
   analogist: {
     label: 'The Analogist',
-    emoji: '🧩',
+    short: 'Analogist',
     accent: 'var(--accent-cyan)',
-    glow: 'rgba(82, 229, 232, 0.5)',
     tagline: 'makes it click',
   },
   purist: {
     label: 'The Purist',
-    emoji: '📐',
+    short: 'Purist',
     accent: 'var(--accent-violet)',
-    glow: 'rgba(155, 123, 255, 0.5)',
     tagline: 'keeps it exact',
   },
   real_world: {
     label: 'Real World',
-    emoji: '🌍',
+    short: 'Real World',
     accent: '#f2b84b',
-    glow: 'rgba(242, 184, 75, 0.5)',
     tagline: 'grounds it',
   },
   skeptic: {
     label: 'The Skeptic',
-    emoji: '🔍',
+    short: 'Skeptic',
     accent: '#ff6b81',
-    glow: 'rgba(255, 107, 129, 0.5)',
     tagline: 'stress-tests it',
   },
   synthesis: {
     label: 'Synthesis',
-    emoji: '✨',
+    short: 'Synthesis',
     accent: '#eef1fb',
-    glow: 'rgba(238, 241, 251, 0.4)',
     tagline: 'the verdict',
   },
 };
@@ -68,6 +66,22 @@ const STATUS_LABEL: Record<Status, string> = {
   amber: 'Engaged',
   green: 'Proven',
 };
+
+const OUTCOME_COPY: Record<WarRoomOutcome, { headline: string; body: string }> = {
+  understood: {
+    headline: 'The room reached agreement.',
+    body: 'All five perspectives converged on a shared explanation — that’s worth locking in.',
+  },
+  still_confused: {
+    headline: 'The room couldn’t fully agree.',
+    body: 'There’s still some tension between perspectives here — worth a second pass before you test yourself.',
+  },
+};
+
+/** Two-digit turn index, e.g. 01 — the numbered structure the roster leans on. */
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
 
 /**
  * Safety net: the personas are prompted to write plain text, but if the model
@@ -85,14 +99,35 @@ function stripMarkdown(s: string): string {
     .replace(/[*_`]{1,2}/g, '');
 }
 
+function formatClock(ms: number): string {
+  return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 function emptySeats(): Record<WarRoomPersona, SeatState> {
   return {
-    analogist: { phase: 'idle', text: '' },
-    purist: { phase: 'idle', text: '' },
-    real_world: { phase: 'idle', text: '' },
-    skeptic: { phase: 'idle', text: '' },
-    synthesis: { phase: 'idle', text: '' },
+    analogist: { phase: 'idle', text: '', startedAt: null },
+    purist: { phase: 'idle', text: '', startedAt: null },
+    real_world: { phase: 'idle', text: '', startedAt: null },
+    skeptic: { phase: 'idle', text: '', startedAt: null },
+    synthesis: { phase: 'idle', text: '', startedAt: null },
   };
+}
+
+/** Three-dot "typing…" indicator, tinted to the speaking persona's accent. */
+function TypingDots({ color }: { color: string }) {
+  return (
+    <span className="inline-flex items-center gap-1" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <motion.span
+          key={i}
+          className="rm-dot"
+          style={{ background: color, width: 4, height: 4 }}
+          animate={{ opacity: [0.2, 1, 0.2] }}
+          transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut', delay: i * 0.15 }}
+        />
+      ))}
+    </span>
+  );
 }
 
 /**
@@ -100,6 +135,11 @@ function emptySeats(): Record<WarRoomPersona, SeatState> {
  * (see server/src/agents/warRoomStream.ts) and, on convergence, plays an
  * understated "case closed" beat before handing the updated node back to the
  * graph via replaceNode.
+ *
+ * Visual intent: a situation room. A numbered roster rail owns identity, and
+ * the transcript is a single threaded sequence of short turns — accent colour
+ * carries who is speaking, the bubbles themselves stay neutral so five voices
+ * never turn into five competing colour fields.
  */
 export function WarRoom({ node, onClose, replaceNode }: WarRoomProps) {
   const [seats, setSeats] = useState<Record<WarRoomPersona, SeatState>>(emptySeats);
@@ -108,14 +148,26 @@ export function WarRoom({ node, onClose, replaceNode }: WarRoomProps) {
   const [resolved, setResolved] = useState(false);
   const [outcome, setOutcome] = useState<WarRoomOutcome | null>(null);
   const [resolvedStatus, setResolvedStatus] = useState<Status | null>(null);
-  const [connectionNote, setConnectionNote] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
 
   const sessionIdRef = useRef<string | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
+  const nearBottomRef = useRef(true);
 
   useEffect(() => {
     let cancelled = false;
     const socket = getSocket();
+
+    // Fresh attempt — clear out any previous run's state.
+    setSeats(emptySeats());
+    setActivePersona(null);
+    setRound(0);
+    setResolved(false);
+    setOutcome(null);
+    setResolvedStatus(null);
+    setConnectionError(null);
+    sessionIdRef.current = null;
 
     const handleTurn: ServerToClientEvents['warroom:turn'] = (payload) => {
       if (payload.node_id !== node.id) return;
@@ -124,13 +176,13 @@ export function WarRoom({ node, onClose, replaceNode }: WarRoomProps) {
       setSeats((prev) => {
         const current = prev[payload.persona];
         if (payload.phase === 'start') {
-          return { ...prev, [payload.persona]: { phase: 'active', text: '' } };
+          return { ...prev, [payload.persona]: { phase: 'active', text: '', startedAt: Date.now() } };
         }
         if (payload.phase === 'token') {
-          return { ...prev, [payload.persona]: { phase: 'active', text: current.text + payload.text } };
+          return { ...prev, [payload.persona]: { ...current, phase: 'active', text: current.text + payload.text } };
         }
         // 'done' — server sends the full accumulated message, trust it verbatim.
-        return { ...prev, [payload.persona]: { phase: 'done', text: payload.text } };
+        return { ...prev, [payload.persona]: { ...current, phase: 'done', text: payload.text } };
       });
 
       if (payload.phase === 'start') {
@@ -165,7 +217,7 @@ export function WarRoom({ node, onClose, replaceNode }: WarRoomProps) {
       })
       .catch((err) => {
         console.warn('[Zynth] War Room stream failed to start:', err);
-        if (!cancelled) setConnectionNote('Could not reach the War Room backend — is the server running?');
+        if (!cancelled) setConnectionError('Could not reach the War Room backend — is the server running?');
       });
 
     return () => {
@@ -174,206 +226,249 @@ export function WarRoom({ node, onClose, replaceNode }: WarRoomProps) {
       socket.off('warroom:resolved', handleResolved);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node.id]);
+  }, [node.id, retryTick]);
 
-  // Auto-scroll the transcript as new turns/tokens arrive.
-  useLayoutEffect(() => {
+  // Esc closes the room from anywhere in this screen.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  // Track whether the reader is already near the bottom, so streaming text
+  // never yanks the scroll position out from under someone reading back.
+  const handleTranscriptScroll = useCallback(() => {
     const el = transcriptRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    nearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 96;
+  }, []);
+
+  useEffect(() => {
+    const el = transcriptRef.current;
+    if (el && nearBottomRef.current) el.scrollTop = el.scrollHeight;
   });
 
+  const started = round > 0 || resolved;
   const liveStatusColor = STATUS_COLORS[node.status];
   const finalStatusColor = resolvedStatus ? STATUS_COLORS[resolvedStatus] : liveStatusColor;
   const pillColor = resolved ? finalStatusColor : liveStatusColor;
+  const spokenSeats = SEAT_ORDER.filter((p) => seats[p].phase !== 'idle');
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.2 } }}
-      className="pointer-events-auto fixed inset-0 z-30 flex items-center justify-center p-6"
-      style={{ background: 'rgba(2, 2, 8, 0.68)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }}
+      className="rm-scrim pointer-events-auto flex items-stretch justify-center p-0 sm:p-6"
+      style={{ '--rm-accent': 'var(--accent-cyan)' } as CSSProperties}
     >
       <motion.div
-        initial={{ scale: 0.96, y: 16, opacity: 0 }}
+        initial={{ scale: 0.985, y: 12, opacity: 0 }}
         animate={{ scale: 1, y: 0, opacity: 1 }}
-        exit={{ scale: 0.97, y: 12, opacity: 0, transition: { duration: 0.2, ease: 'easeIn' } }}
+        exit={{ scale: 0.99, y: 8, opacity: 0, transition: { duration: 0.2, ease: 'easeIn' } }}
         transition={{ type: 'spring', stiffness: 240, damping: 28 }}
-        className="glass-panel glass-panel-strong relative flex h-[88vh] w-[min(72rem,94vw)] flex-col overflow-hidden p-0"
+        className="rm-shell h-full w-full max-w-6xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`War Room — ${node.label}`}
       >
-        {/* Case-closed glow pulse — plays once on resolution, then fades away. */}
-        <AnimatePresence>
-          {resolved && (
-            <motion.div
-              key="resolve-glow"
-              className="pointer-events-none absolute inset-0 z-0"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 0.9, 0] }}
-              transition={{ duration: 1.4, ease: 'easeOut' }}
-              style={{
-                background: `radial-gradient(ellipse 70% 60% at 50% 40%, ${finalStatusColor}33, transparent 70%)`,
-              }}
-            />
-          )}
-        </AnimatePresence>
+        {/* Case-closed beat: a single slow sweep of light. No confetti. */}
+        {resolved && <div className="wr-sweep" aria-hidden="true" />}
 
-        {/* Header */}
-        <div className="relative z-10 flex items-start justify-between gap-4 border-b px-7 pb-5 pt-6" style={{ borderColor: 'var(--border-glass)' }}>
-          <div className="min-w-0">
-            <div className="section-label">{node.subject}</div>
-            <h2 className="font-display mt-1 truncate text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {node.label}
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: 'var(--text-secondary)' }}>
-              5 minds, one concept.
-            </p>
+        {/* ---- Header ------------------------------------------------------ */}
+        <header className="rm-pad rm-rule-b rm-band relative z-10 flex flex-shrink-0 flex-col gap-3.5 sm:gap-4">
+          <div className="flex items-start justify-between gap-4">
+            <button type="button" onClick={onClose} className="rm-btn-quiet">
+              <span aria-hidden="true">←</span> Back to graph
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="rm-micro hidden sm:inline">Esc</span>
+              <button type="button" onClick={onClose} className="rm-icon-btn" aria-label="Close War Room">
+                <span aria-hidden="true">✕</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-3">
-            {!resolved && round > 0 && (
-              <span className="glass-chip px-2.5 py-1 text-[11px] font-medium tabular-nums" style={{ color: 'var(--text-muted)' }}>
-                Round {round} / {SEAT_ORDER.length}
-              </span>
-            )}
-            <motion.span
-              className="glass-chip inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium"
-              animate={{ color: pillColor }}
-              transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-            >
-              <motion.span
-                className="h-1.5 w-1.5 rounded-full"
-                animate={{
-                  backgroundColor: pillColor,
-                  boxShadow: `0 0 8px ${pillColor}88, 0 0 2px ${pillColor}88`,
-                }}
-                transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-              />
-              {resolved ? `Case closed — ${STATUS_LABEL[resolvedStatus ?? node.status]}` : 'Live debate'}
-            </motion.span>
-            <button
-              onClick={onClose}
-              className="transition-colors duration-150"
-              style={{ color: 'var(--text-muted)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
-              aria-label="Close"
-            >
-              {'✕'}
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <div className="rm-eyebrow">
+                War Room <span aria-hidden="true">·</span> {node.subject}
+              </div>
+              <h2 className="rm-title rm-wrap mt-2.5">{node.label}</h2>
+              <p className="rm-lead rm-optional mt-2.5 max-w-xl">
+                Five AI perspectives argue this concept live until they converge on a verdict.
+              </p>
+            </div>
+
+            <div className="flex flex-shrink-0 flex-wrap items-center gap-2">
+              {!resolved && round > 0 && (
+                <span className="rm-tag rm-num">
+                  Turn {pad2(round)} / {pad2(SEAT_ORDER.length)}
+                </span>
+              )}
+              <motion.span className="rm-tag" animate={{ color: pillColor }} transition={{ duration: 0.4 }}>
+                <motion.span
+                  className="rm-dot"
+                  animate={{ backgroundColor: pillColor, boxShadow: `0 0 10px ${pillColor}` }}
+                  transition={{ duration: 0.4 }}
+                />
+                {resolved
+                  ? `Case closed · ${STATUS_LABEL[resolvedStatus ?? node.status]}`
+                  : started
+                    ? 'Live debate'
+                    : 'Connecting'}
+              </motion.span>
+            </div>
+          </div>
+        </header>
+
+        {connectionError ? (
+          /* Error state — the whole body becomes a single retry surface. */
+          <div className="rm-pad relative z-10 flex flex-1 flex-col items-center justify-center gap-5 py-10 text-center">
+            <div className="rm-eyebrow" style={{ color: 'var(--status-red)' }}>
+              Connection lost
+            </div>
+            <p className="rm-lead max-w-md">{connectionError}</p>
+            <button type="button" onClick={() => setRetryTick((t) => t + 1)} className="rm-btn rm-btn-solid">
+              Retry connection
             </button>
           </div>
-        </div>
+        ) : (
+          <div className="relative z-10 flex min-h-0 flex-1 flex-col lg:flex-row">
+            {/* ---- Roster rail --------------------------------------------- */}
+            <div className="wr-roster" aria-label="Debate roster">
+              <div className="rm-eyebrow hidden lg:block" style={{ paddingBottom: 14 }}>
+                The room
+              </div>
+              {SEAT_ORDER.map((persona, i) => {
+                const meta = SEAT_META[persona];
+                const seat = seats[persona];
+                const isActive = activePersona === persona;
+                const state = isActive ? 'active' : seat.phase === 'done' ? 'done' : 'idle';
+                return (
+                  <div
+                    key={persona}
+                    className="wr-seat"
+                    data-state={state}
+                    style={{ '--seat-accent': meta.accent } as CSSProperties}
+                  >
+                    <span className="wr-seat-idx">{pad2(i + 1)}</span>
+                    <span className="rm-dot" style={{ background: meta.accent }} aria-hidden="true" />
+                    <div className="min-w-0">
+                      <div className="wr-seat-name">{meta.short}</div>
+                      <div className="wr-seat-state">
+                        {seat.phase === 'active' ? (
+                          <>
+                            <TypingDots color={meta.accent} />
+                            <span>Speaking</span>
+                          </>
+                        ) : seat.phase === 'done' ? (
+                          'Spoken'
+                        ) : (
+                          'Waiting'
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-        {connectionNote && (
-          <div className="relative z-10 mx-7 mt-4 glass-chip px-3 py-2 text-[11px]" style={{ color: 'var(--status-red)' }}>
-            {connectionNote}
+            {/* ---- Transcript ---------------------------------------------- */}
+            {/* The padding lives on the inner wrapper, never on the scroller
+                itself: padding is not shrinkable, so a padded flex-1 scroller
+                has a hard minimum height and spills over the verdict bar on
+                landscape phones. */}
+            <div
+              ref={transcriptRef}
+              onScroll={handleTranscriptScroll}
+              className="rm-scroll flex-1"
+              aria-live="polite"
+              aria-atomic="false"
+            >
+              {!started ? (
+                <div className="rm-pad flex h-full flex-col items-center justify-center gap-4 py-12 text-center">
+                  <div className="rm-spinner h-6 w-6" aria-hidden="true" />
+                  <div className="rm-eyebrow">Convening</div>
+                  <p className="rm-body max-w-xs">
+                    Pulling {SEAT_ORDER.length} perspectives into the room…
+                  </p>
+                </div>
+              ) : (
+                <div className="rm-pad pb-8 pt-6 sm:pt-8">
+                <div className="wr-thread">
+                  {spokenSeats.map((persona) => {
+                    const meta = SEAT_META[persona];
+                    const seat = seats[persona];
+                    const isActive = activePersona === persona;
+                    const isFinalWord = resolved && persona === 'synthesis';
+                    const turn = SEAT_ORDER.indexOf(persona) + 1;
+                    return (
+                      <motion.article
+                        key={persona}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+                        className="wr-msg"
+                        style={{ '--seat-accent': meta.accent } as CSSProperties}
+                      >
+                        <span className="wr-msg-badge rm-num" aria-hidden="true">
+                          {pad2(turn)}
+                        </span>
+                        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span className="wr-msg-name">{meta.label}</span>
+                          <span className="wr-msg-meta">
+                            {seat.startedAt ? formatClock(seat.startedAt) : meta.tagline}
+                          </span>
+                        </div>
+                        {seat.text ? (
+                          <p className="wr-bubble" data-final={isFinalWord ? 'true' : 'false'}>
+                            {stripMarkdown(seat.text)}
+                            {isActive && <span className="wr-caret" aria-hidden="true" />}
+                          </p>
+                        ) : (
+                          <span className="wr-bubble" data-final="false">
+                            <TypingDots color={meta.accent} />
+                          </span>
+                        )}
+                      </motion.article>
+                    );
+                  })}
+                </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Seats row */}
-        <div className="relative z-10 flex items-center gap-3 overflow-x-auto px-7 py-5">
-          {SEAT_ORDER.map((persona, i) => {
-            const meta = SEAT_META[persona];
-            const seat = seats[persona];
-            const isActive = activePersona === persona;
-            const isFinalWord = resolved && persona === 'synthesis';
-            return (
-              <motion.div
-                key={persona}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{
-                  opacity: resolved && !isFinalWord ? 0.55 : 1,
-                  y: 0,
-                  scale: isActive || isFinalWord ? 1.04 : 1,
-                }}
-                transition={{ delay: i * 0.06, type: 'spring', stiffness: 220, damping: 24 }}
-                className="glass-chip flex shrink-0 items-center gap-2 px-3 py-2"
-                style={{
-                  borderColor: isActive || isFinalWord ? meta.accent : 'var(--border-glass)',
-                  boxShadow: isActive || isFinalWord ? `0 0 18px ${meta.glow}` : undefined,
-                }}
-              >
-                <span
-                  className="relative flex h-6 w-6 items-center justify-center rounded-full text-xs"
-                  style={{ background: `${meta.accent}22`, border: `1px solid ${meta.accent}55` }}
-                >
-                  {meta.emoji}
-                  {isActive && (
-                    <motion.span
-                      className="absolute inset-0 rounded-full"
-                      style={{ border: `1px solid ${meta.accent}` }}
-                      animate={{ opacity: [0.7, 0, 0.7], scale: [1, 1.5, 1] }}
-                      transition={{ duration: 1.3, repeat: Infinity, ease: 'easeOut' }}
-                    />
-                  )}
-                </span>
-                <div className="leading-tight">
-                  <div className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {meta.label}
+        {/* ---- Verdict ------------------------------------------------------ */}
+        <AnimatePresence>
+          {resolved && outcome && (
+            <motion.div
+              key="summary"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.45, type: 'spring', stiffness: 220, damping: 28 }}
+              className="rm-pad rm-rule-t rm-band-sm relative z-10 flex-shrink-0"
+              aria-live="polite"
+            >
+              <div className="flex flex-col gap-3.5 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
+                <div className="min-w-0">
+                  <div className="rm-eyebrow" style={{ color: finalStatusColor }}>
+                    Verdict
                   </div>
-                  <div className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                    {seat.phase === 'done' ? 'done' : seat.phase === 'active' ? 'speaking…' : meta.tagline}
-                  </div>
+                  <p className="rm-subtitle rm-wrap mt-2">{OUTCOME_COPY[outcome].headline}</p>
+                  <p className="rm-body rm-optional mt-1.5 max-w-xl">{OUTCOME_COPY[outcome].body}</p>
                 </div>
-              </motion.div>
-            );
-          })}
-        </div>
-
-        {/* Transcript */}
-        <div ref={transcriptRef} className="relative z-10 flex-1 overflow-y-auto px-7 pb-7">
-          <div className="flex flex-col gap-4">
-            {SEAT_ORDER.filter((p) => seats[p].phase !== 'idle').map((persona) => {
-              const meta = SEAT_META[persona];
-              const seat = seats[persona];
-              const isActive = activePersona === persona;
-              const isFinalWord = resolved && persona === 'synthesis';
-              return (
-                <motion.div
-                  key={persona}
-                  initial={{ opacity: 0, y: 14 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ type: 'spring', stiffness: 240, damping: 28 }}
-                  className="flex items-start gap-3"
-                >
-                  <span
-                    className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm"
-                    style={{ background: `${meta.accent}22`, border: `1px solid ${meta.accent}55` }}
-                  >
-                    {meta.emoji}
-                  </span>
-                  <div
-                    className="glass-chip min-w-0 flex-1 px-4 py-3"
-                    style={{
-                      borderColor: isActive || isFinalWord ? meta.accent : 'var(--border-glass)',
-                      boxShadow: isFinalWord ? `0 0 22px ${meta.glow}` : undefined,
-                    }}
-                  >
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-xs font-semibold" style={{ color: meta.accent }}>
-                        {meta.label}
-                      </span>
-                      <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-                        {meta.tagline}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-sm leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                      {stripMarkdown(seat.text)}
-                      {isActive && (
-                        <motion.span
-                          aria-hidden="true"
-                          className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 align-middle"
-                          style={{ background: meta.accent }}
-                          animate={{ opacity: [1, 0, 1] }}
-                          transition={{ duration: 0.9, repeat: Infinity, ease: 'linear' }}
-                        />
-                      )}
-                    </p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
+                <button type="button" onClick={onClose} className="rm-btn rm-btn-solid flex-shrink-0">
+                  Prove it with a quiz <span aria-hidden="true">→</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
   );

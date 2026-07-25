@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { Node, QuizQuestion } from '@zynth/shared';
 import { QUIZ_PASS_THRESHOLD, STATUS_COLORS } from '@zynth/shared';
 import { generateQuiz, submitQuiz } from '../lib/api';
+import './rooms.css';
 
 export interface QuizProps {
   node: Node;
@@ -24,11 +26,19 @@ const LOADING_LINES = [
   'Sanity-checking the answer key…',
 ];
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 /**
  * Full-page quiz overlay — the only path to a green/mastered node. Flow:
- * generate (Gemini, live) -> answer (mcq single-select / free-response
- * textarea) -> submit (Groq-graded) -> results (score ring, pass/fail,
+ * generate (Gemini, live) -> answer, one question at a time (mcq single-select
+ * / free-response textarea) -> submit (Groq-graded) -> results (score, pass/fail,
  * per-question explanations, replaceNode(green) on pass).
+ *
+ * Visual intent: high-stakes and singular. One question owns the viewport at a
+ * large size, a hairline progress bar runs the top edge, and the result screen
+ * makes the score the hero — one enormous numeral against the 70% threshold.
  */
 export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
   const [phase, setPhase] = useState<Phase>('loading');
@@ -36,10 +46,12 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
   const [error, setError] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [passed, setPassed] = useState(false);
   const [perQuestion, setPerQuestion] = useState<PerQuestionResult[]>([]);
   const [gradedQuestions, setGradedQuestions] = useState<QuizQuestion[]>([]);
+  const [confirmingClose, setConfirmingClose] = useState(false);
 
   useEffect(() => {
     if (phase !== 'loading') return;
@@ -56,6 +68,7 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
       const { questions: qs } = await generateQuiz([node.id]);
       setQuestions(qs);
       setAnswers({});
+      setCurrentIndex(0);
       setPhase('answering');
     } catch (err) {
       console.warn('[Zynth] quiz generation failed:', err);
@@ -69,13 +82,31 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id]);
 
-  const allAnswered = useMemo(
-    () => questions.length > 0 && questions.every((q) => (answers[q.id] ?? '').trim().length > 0),
+  const answeredIds = useMemo(
+    () => new Set(questions.filter((q) => (answers[q.id] ?? '').trim().length > 0).map((q) => q.id)),
     [questions, answers],
   );
+  const allAnswered = questions.length > 0 && answeredIds.size === questions.length;
+  const hasAnyAnswer = answeredIds.size > 0;
+  const currentQuestion = questions[currentIndex] as QuizQuestion | undefined;
+  const isLastQuestion = currentIndex === questions.length - 1;
 
   function setAnswer(questionId: string, value: string) {
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
+  }
+
+  function goTo(index: number) {
+    if (index < 0 || index >= questions.length) return;
+    setCurrentIndex(index);
+  }
+
+  /** Close attempts mid-quiz warn if answers would be lost; otherwise close right away. */
+  function requestClose() {
+    if (phase === 'answering' && hasAnyAnswer) {
+      setConfirmingClose(true);
+      return;
+    }
+    onClose();
   }
 
   async function handleSubmit() {
@@ -108,247 +139,412 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
     }
   }
 
+  // Esc closes (through the same unsaved-answers guard); ignored while a
+  // confirm dialog or a textarea is capturing input.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (confirmingClose) {
+        setConfirmingClose(false);
+        return;
+      }
+      requestClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmingClose, phase, hasAnyAnswer]);
+
+  // MCQ keyboard support: 1-9 to pick a choice, arrows to move the selection,
+  // Enter to advance/submit. Disabled while a textarea has focus so free
+  // response typing (and its own Enter-for-newline) is never intercepted.
+  useEffect(() => {
+    if (phase !== 'answering' || !currentQuestion) return;
+
+    function onKeyDown(e: KeyboardEvent) {
+      const active = document.activeElement;
+      const typingInField = active instanceof HTMLTextAreaElement || active instanceof HTMLInputElement;
+      const q = currentQuestion;
+      if (!q) return;
+
+      if (e.key === 'Enter' && !typingInField) {
+        e.preventDefault();
+        if (isLastQuestion) {
+          if (allAnswered) handleSubmit();
+        } else if ((answers[q.id] ?? '').trim().length > 0) {
+          goTo(currentIndex + 1);
+        }
+        return;
+      }
+
+      if (q.question_type !== 'mcq' || typingInField) return;
+      const choices = q.choices ?? [];
+
+      if (/^[1-9]$/.test(e.key)) {
+        const idx = Number(e.key) - 1;
+        const choice = choices[idx];
+        if (choice !== undefined) setAnswer(q.id, choice);
+        return;
+      }
+
+      if (['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(e.key)) {
+        e.preventDefault();
+        const dir = e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1;
+        const current = choices.indexOf(answers[q.id] ?? '');
+        const next = current === -1 ? (dir === 1 ? 0 : choices.length - 1) : (current + dir + choices.length) % choices.length;
+        const choice = choices[next];
+        if (choice !== undefined) setAnswer(q.id, choice);
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, currentQuestion, currentIndex, answers, isLastQuestion, allAnswered]);
+
+  const answering = phase === 'answering' || phase === 'submitting';
+  const progressPct =
+    phase === 'results' ? 100 : questions.length === 0 ? 0 : ((currentIndex + 1) / questions.length) * 100;
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-30 flex flex-col overflow-y-auto bg-black/70 backdrop-blur-md"
+      className="rm-scrim rm-page flex flex-col"
+      style={{ '--rm-accent': 'var(--accent-cyan)' } as CSSProperties}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Quiz — ${node.label}`}
     >
-      <Header node={node} onClose={onClose} />
+      {/* Hairline progress along the very top edge — the only always-on chrome. */}
+      <div className="qz-progress" aria-hidden="true">
+        <div className="qz-progress-fill" style={{ width: `${progressPct}%` }} />
+      </div>
 
-      <div className="mx-auto w-full max-w-3xl flex-1 px-6 pb-16 pt-6">
-        <AnimatePresence mode="wait">
-          {phase === 'loading' && (
-            <motion.div
-              key="loading"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="glass-panel flex flex-col items-center gap-4 px-8 py-16 text-center"
-            >
-              <div className="relative h-12 w-12">
-                <div
-                  className="absolute inset-0 animate-spin rounded-full border-2 border-transparent"
-                  style={{ borderTopColor: 'var(--accent-cyan)', borderRightColor: 'var(--accent-cyan)' }}
-                />
-              </div>
-              <div className="section-label">Generating your quiz</div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {LOADING_LINES[loadingLine]}
-              </p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Live model call — usually takes a few seconds.
-              </p>
-            </motion.div>
-          )}
+      {/* ---- Header --------------------------------------------------------- */}
+      <header className="rm-rule-b flex-shrink-0">
+        <div className="rm-pad rm-band mx-auto flex w-full max-w-3xl items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="rm-eyebrow">
+              Quiz <span aria-hidden="true">·</span> {node.subject}
+            </div>
+            <h1 className="rm-title rm-wrap mt-2">{node.label}</h1>
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-2">
+            {answering && (
+              <span className="rm-tag hidden sm:inline-flex" style={{ color: 'var(--accent-cyan)' }}>
+                {QUIZ_PASS_THRESHOLD}% to pass
+              </span>
+            )}
+            <span className="rm-micro hidden sm:inline">Esc</span>
+            <button type="button" onClick={requestClose} className="rm-icon-btn" aria-label="Close quiz">
+              <span aria-hidden="true">✕</span>
+            </button>
+          </div>
+        </div>
+      </header>
 
-          {phase === 'error' && (
-            <motion.div
-              key="error"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="glass-panel flex flex-col items-center gap-4 px-8 py-16 text-center"
-            >
-              <div className="text-3xl">⚠️</div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                {error}
-              </p>
-              <button onClick={load} className="btn-primary px-5 py-2.5 text-sm font-semibold">
-                Try again
-              </button>
-            </motion.div>
-          )}
+      {/* ---- Body ----------------------------------------------------------- */}
+      <div className="rm-scroll flex-1">
+        <div className="rm-pad mx-auto w-full max-w-3xl py-8 sm:py-12">
+          <AnimatePresence mode="wait">
+            {phase === 'loading' && (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-start gap-5 py-10"
+                aria-live="polite"
+              >
+                <div className="rm-spinner h-7 w-7" aria-hidden="true" />
+                <div className="rm-eyebrow rm-eyebrow-accent">Generating your quiz</div>
+                <p className="rm-display">{LOADING_LINES[loadingLine]}</p>
+                <p className="rm-micro">Live model call — usually takes a few seconds.</p>
+              </motion.div>
+            )}
 
-          {(phase === 'answering' || phase === 'submitting') && (
-            <motion.div key="answering" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              {error && (
-                <div className="glass-chip mb-4 px-4 py-2 text-xs" style={{ color: 'var(--status-amber)' }}>
-                  {error}
+            {phase === 'error' && (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-start gap-5 py-10"
+              >
+                <div className="rm-eyebrow" style={{ color: 'var(--status-red)' }}>
+                  Could not start
                 </div>
-              )}
-              <div className="flex flex-col gap-4">
-                {questions.map((q, idx) => (
-                  <QuestionCard
-                    key={q.id}
-                    index={idx}
-                    question={q}
-                    value={answers[q.id] ?? ''}
-                    onChange={(v) => setAnswer(q.id, v)}
-                    disabled={phase === 'submitting'}
-                  />
-                ))}
-              </div>
+                <p className="rm-title max-w-xl">{error}</p>
+                <button type="button" onClick={load} className="rm-btn rm-btn-solid">
+                  Try again
+                </button>
+              </motion.div>
+            )}
 
-              <div className="mt-6 flex items-center justify-between">
-                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {questions.filter((q) => (answers[q.id] ?? '').trim().length > 0).length} / {questions.length} answered
-                </span>
+            {answering && currentQuestion && (
+              <motion.div
+                key={`q-${currentQuestion.id}`}
+                initial={{ opacity: 0, x: 14 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -14 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+              >
+                {error && (
+                  <div
+                    className="mb-6 rounded-xl border px-4 py-3"
+                    style={{ borderColor: 'var(--status-amber)', color: 'var(--status-amber)' }}
+                    role="alert"
+                  >
+                    <span className="rm-micro" style={{ color: 'inherit' }}>
+                      {error}
+                    </span>
+                  </div>
+                )}
+
+                <QuestionPanel
+                  index={currentIndex}
+                  total={questions.length}
+                  question={currentQuestion}
+                  value={answers[currentQuestion.id] ?? ''}
+                  onChange={(v) => setAnswer(currentQuestion.id, v)}
+                  disabled={phase === 'submitting'}
+                />
+              </motion.div>
+            )}
+
+            {phase === 'results' && (
+              <ResultsView
+                score={score}
+                passed={passed}
+                questions={gradedQuestions}
+                perQuestion={perQuestion}
+                onRetry={load}
+                onClose={onClose}
+              />
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* ---- Footer --------------------------------------------------------- */}
+      {answering && questions.length > 0 && (
+        <QuizFooter
+          questions={questions}
+          currentIndex={currentIndex}
+          answeredIds={answeredIds}
+          allAnswered={allAnswered}
+          submitting={phase === 'submitting'}
+          onGoTo={goTo}
+          onSubmit={handleSubmit}
+        />
+      )}
+
+      <AnimatePresence>
+        {confirmingClose && (
+          <motion.div
+            key="confirm-close"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 flex items-center justify-center p-6"
+            style={{ background: 'rgba(2, 2, 6, 0.75)' }}
+          >
+            <motion.div
+              initial={{ scale: 0.96, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.97, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+              className="w-full max-w-sm rounded-2xl border p-7"
+              style={{
+                borderColor: 'var(--border-glass)',
+                background: 'linear-gradient(180deg, rgba(16,18,32,0.98), rgba(8,9,18,0.98))',
+              }}
+              role="alertdialog"
+              aria-modal="true"
+              aria-label="Leave quiz without finishing?"
+            >
+              <div className="rm-eyebrow">Unsaved attempt</div>
+              <p className="rm-subtitle mt-2.5">Leave without finishing?</p>
+              <p className="rm-body mt-2">Your answers on this attempt won’t be saved.</p>
+              <div className="mt-6 flex flex-col gap-2.5 sm:flex-row">
                 <button
-                  onClick={handleSubmit}
-                  disabled={!allAnswered || phase === 'submitting'}
-                  className="btn-primary px-6 py-2.5 text-sm font-semibold"
+                  type="button"
+                  onClick={() => setConfirmingClose(false)}
+                  className="rm-btn rm-btn-ghost flex-1"
+                  autoFocus
                 >
-                  {phase === 'submitting' ? 'Grading…' : 'Submit quiz'}
+                  Stay
+                </button>
+                <button type="button" onClick={onClose} className="rm-btn rm-btn-solid flex-1">
+                  Leave quiz
                 </button>
               </div>
             </motion.div>
-          )}
-
-          {phase === 'results' && (
-            <ResultsView
-              score={score}
-              passed={passed}
-              questions={gradedQuestions}
-              perQuestion={perQuestion}
-              onRetry={load}
-              onClose={onClose}
-            />
-          )}
-        </AnimatePresence>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-function Header({ node, onClose }: { node: Node; onClose: () => void }) {
-  return (
-    <div className="sticky top-0 z-10 border-b border-white/5 bg-black/30 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-3xl items-center justify-between px-6 py-5">
-        <div>
-          <div className="section-label">{node.subject} · Quiz</div>
-          <h1 className="font-display mt-1 text-2xl font-semibold" style={{ color: 'var(--text-primary)' }}>
-            {node.label}
-          </h1>
-        </div>
-        <button
-          onClick={onClose}
-          className="glass-chip btn-chip flex h-9 w-9 items-center justify-center text-sm"
-          aria-label="Close quiz"
-        >
-          {'✕'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function QuestionCard({
+function QuestionPanel({
   index,
+  total,
   question,
   value,
   onChange,
   disabled,
 }: {
   index: number;
+  total: number;
   question: QuizQuestion;
   value: string;
   onChange: (v: string) => void;
   disabled: boolean;
 }) {
   const isMcq = question.question_type === 'mcq';
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const choices = question.choices ?? [];
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="glass-panel px-5 py-5"
-    >
-      <div className="flex items-start gap-3">
-        <span
-          className="glass-chip flex h-6 w-6 shrink-0 items-center justify-center text-[11px] font-semibold"
-          style={{ color: 'var(--accent-cyan)' }}
-        >
-          {index + 1}
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="rm-eyebrow rm-eyebrow-accent rm-num" aria-live="polite">
+          Question {pad2(index + 1)} / {pad2(total)}
         </span>
-        <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
-          {question.prompt}
-        </p>
+        <span className="rm-tag">{isMcq ? 'Multiple choice' : 'AI-graded'}</span>
       </div>
 
-      <div className="mt-4 pl-9">
+      <p className="qz-question mt-5 sm:mt-7">{question.prompt}</p>
+
+      <div className="mt-8 sm:mt-10">
         {isMcq ? (
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {(question.choices ?? []).map((choice) => {
-              const selected = value === choice;
-              return (
-                <button
-                  key={choice}
-                  disabled={disabled}
-                  onClick={() => onChange(choice)}
-                  className="glass-chip rounded-lg px-3.5 py-2.5 text-left text-sm transition disabled:opacity-60"
-                  style={{
-                    color: selected ? 'var(--text-primary)' : 'var(--text-secondary)',
-                    borderColor: selected ? 'var(--accent-cyan)' : undefined,
-                    boxShadow: selected ? '0 0 0 1px var(--accent-cyan), 0 0 16px var(--accent-cyan-dim)' : undefined,
-                  }}
-                >
-                  {choice}
-                </button>
-              );
-            })}
-          </div>
+          <>
+            <div className="flex flex-col gap-2.5" role="group" aria-label="Answer choices">
+              {choices.map((choice, i) => {
+                const selected = value === choice;
+                return (
+                  <button
+                    key={choice}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onChange(choice)}
+                    className="qz-option"
+                    data-selected={selected ? 'true' : 'false'}
+                    aria-pressed={selected}
+                  >
+                    <span className="qz-key" aria-hidden="true">
+                      {selected ? '✓' : i + 1}
+                    </span>
+                    <span className="rm-wrap min-w-0">{choice}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="rm-micro mt-4">
+              Press 1–{choices.length} or use the arrow keys to pick · Enter to continue
+            </p>
+          </>
         ) : (
-          <textarea
-            value={value}
-            disabled={disabled}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder="Type your answer…"
-            rows={4}
-            className="glass-chip w-full resize-none rounded-lg px-3.5 py-3 text-sm outline-none placeholder:text-white/25 disabled:opacity-60"
-            style={{ color: 'var(--text-primary)' }}
-          />
+          <>
+            <textarea
+              ref={textareaRef}
+              value={value}
+              disabled={disabled}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="Type your answer…"
+              rows={7}
+              className="rm-field"
+              aria-label="Your answer"
+            />
+            <p className="rm-micro mt-3">This answer is graded by AI for meaning, not exact wording.</p>
+          </>
         )}
       </div>
-    </motion.div>
+    </div>
   );
 }
 
-function ScoreRing({ score, passed }: { score: number; passed: boolean }) {
-  const radius = 54;
-  const circumference = 2 * Math.PI * radius;
-  const [dashOffset, setDashOffset] = useState(circumference);
-  const color = passed ? 'var(--status-green)' : 'var(--status-amber)';
-  const glow = passed ? 'var(--status-green-glow)' : 'var(--status-amber-glow)';
-
-  useEffect(() => {
-    // Animated fill-in beat — the "small tasteful surprise" for this screen.
-    const raf = requestAnimationFrame(() => {
-      setDashOffset(circumference * (1 - score / 100));
-    });
-    return () => cancelAnimationFrame(raf);
-  }, [circumference, score]);
+function QuizFooter({
+  questions,
+  currentIndex,
+  answeredIds,
+  allAnswered,
+  submitting,
+  onGoTo,
+  onSubmit,
+}: {
+  questions: QuizQuestion[];
+  currentIndex: number;
+  answeredIds: Set<string>;
+  allAnswered: boolean;
+  submitting: boolean;
+  onGoTo: (i: number) => void;
+  onSubmit: () => void;
+}) {
+  const answeredCount = answeredIds.size;
+  const missing = questions.length - answeredCount;
 
   return (
-    <div className="relative flex h-36 w-36 items-center justify-center">
-      <svg width="144" height="144" viewBox="0 0 144 144" className="-rotate-90">
-        <circle cx="72" cy="72" r={radius} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="8" />
-        <circle
-          cx="72"
-          cy="72"
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth="8"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          style={{
-            transition: 'stroke-dashoffset 1.1s cubic-bezier(0.16, 1, 0.3, 1)',
-            filter: `drop-shadow(0 0 10px ${glow})`,
-          }}
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="font-display tabular-nums text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
-          {score}
-        </span>
-        <span className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          / 100
-        </span>
+    <footer className="rm-rule-t flex-shrink-0" style={{ background: 'rgba(3, 3, 9, 0.7)' }}>
+      <div className="rm-pad rm-band-sm mx-auto flex w-full max-w-3xl flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={() => onGoTo(currentIndex - 1)}
+            disabled={currentIndex === 0 || submitting}
+            className="rm-btn rm-btn-ghost"
+          >
+            <span aria-hidden="true">←</span> Back
+          </button>
+
+          <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto">
+            {questions.map((q, i) => (
+              <button
+                key={q.id}
+                type="button"
+                onClick={() => onGoTo(i)}
+                disabled={submitting}
+                aria-label={`Go to question ${i + 1}${answeredIds.has(q.id) ? ' (answered)' : ''}`}
+                aria-current={i === currentIndex ? 'step' : undefined}
+                className="qz-dot"
+                data-answered={answeredIds.has(q.id) ? 'true' : 'false'}
+                data-current={i === currentIndex ? 'true' : 'false'}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onGoTo(currentIndex + 1)}
+            disabled={currentIndex === questions.length - 1 || submitting}
+            className="rm-btn rm-btn-ghost"
+          >
+            Next <span aria-hidden="true">→</span>
+          </button>
+        </div>
+
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="rm-micro">
+            {allAnswered
+              ? `All ${questions.length} answered — ready to submit.`
+              : `${answeredCount} / ${questions.length} answered · ${missing} to go`}
+          </span>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!allAnswered || submitting}
+            className="rm-btn rm-btn-solid"
+          >
+            {submitting ? 'Grading…' : 'Submit quiz'}
+          </button>
+        </div>
       </div>
-    </div>
+    </footer>
   );
 }
 
@@ -373,109 +569,148 @@ function ResultsView({
     return map;
   }, [perQuestion]);
 
+  // Fill the threshold meter on the next frame so it animates in.
+  const [meterPct, setMeterPct] = useState(0);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMeterPct(score));
+    return () => cancelAnimationFrame(raf);
+  }, [score]);
+
+  const color = passed ? 'var(--status-green)' : 'var(--status-amber)';
+
   return (
     <motion.div
       key="results"
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-12"
+      aria-live="polite"
     >
-      <div
-        className="glass-panel flex flex-col items-center gap-3 px-8 py-10 text-center"
-        style={{
-          boxShadow: passed
-            ? '0 8px 40px rgba(0,0,0,0.45), inset 0 1px 0 var(--border-inner-highlight), 0 0 60px var(--status-green-glow)'
-            : undefined,
-        }}
-      >
-        <ScoreRing score={score} passed={passed} />
-        <div
-          className="glass-chip mt-1 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.2em]"
-          style={{ color: passed ? 'var(--status-green)' : 'var(--status-amber)' }}
-        >
+      {/* ---- The score is the hero ---------------------------------------- */}
+      <section>
+        <div className="rm-eyebrow" style={{ color }}>
           {passed ? 'Passed' : 'Not yet'}
         </div>
-        <h2 className="font-display mt-1 text-xl font-semibold" style={{ color: 'var(--text-primary)' }}>
+
+        <div className="mt-5 flex items-end gap-3">
+          <span className="qz-score" style={{ color }}>
+            {score}
+          </span>
+          <span className="rm-micro rm-num" style={{ paddingBottom: 10 }}>
+            / 100
+          </span>
+        </div>
+
+        <div className="mt-7 max-w-md">
+          <div className="qz-meter">
+            <div className="qz-meter-fill" style={{ width: `${meterPct}%`, background: color }} />
+            <div className="qz-meter-tick" style={{ left: `${QUIZ_PASS_THRESHOLD}%` }} aria-hidden="true" />
+          </div>
+          <div className="rm-micro rm-num mt-2.5 flex justify-between">
+            <span>0</span>
+            <span>{QUIZ_PASS_THRESHOLD}% threshold</span>
+            <span>100</span>
+          </div>
+        </div>
+
+        <h2 className="rm-display mt-9 max-w-xl">
           {passed ? 'Mastery proven.' : 'Not quite mastery — yet.'}
         </h2>
-        <p className="max-w-md text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <p className="rm-lead mt-3 max-w-xl">
           {passed
-            ? `You cleared the ${QUIZ_PASS_THRESHOLD} threshold. This node just turned green.`
-            : `You need ${QUIZ_PASS_THRESHOLD} to prove mastery — you're not far off. Review the explanations below and go again.`}
+            ? `You cleared the ${QUIZ_PASS_THRESHOLD}% threshold. This node just turned green on your graph.`
+            : `You need ${QUIZ_PASS_THRESHOLD}% to prove mastery — you're not far off. Review the explanations below and go again.`}
         </p>
+
         {passed && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4, type: 'spring', stiffness: 200, damping: 18 }}
-            className="mt-2 flex items-center gap-2 text-xs"
-            style={{ color: 'var(--status-green)' }}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.45, duration: 0.4 }}
+            className="mt-6 inline-flex items-center gap-3"
           >
-            <span
-              className="h-1.5 w-1.5 rounded-full"
-              style={{ backgroundColor: STATUS_COLORS.green, boxShadow: '0 0 10px var(--status-green-glow)' }}
-            />
-            node status: amber → green
+            <span className="rm-eyebrow">Node status</span>
+            <span className="rm-tag" style={{ color: 'var(--status-amber)' }}>
+              <span className="rm-dot" style={{ background: STATUS_COLORS.amber }} />
+              Amber
+            </span>
+            <span className="rm-micro" aria-hidden="true">
+              →
+            </span>
+            <span className="rm-tag" style={{ color: 'var(--status-green)', borderColor: 'var(--status-green)' }}>
+              <span
+                className="rm-dot"
+                style={{ background: STATUS_COLORS.green, boxShadow: '0 0 10px var(--status-green-glow)' }}
+              />
+              Green
+            </span>
           </motion.div>
         )}
-      </div>
 
-      <div className="flex flex-col gap-3">
-        {questions.map((q, idx) => {
-          const isCorrect = correctById.get(q.id) ?? q.is_correct ?? false;
-          return (
-            <div key={q.id} className="glass-panel px-5 py-4">
-              <div className="flex items-start gap-3">
+        <div className="mt-9 flex flex-col gap-2.5 sm:flex-row">
+          {passed ? (
+            <button type="button" onClick={onClose} className="rm-btn rm-btn-solid">
+              Back to constellation
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={onRetry} className="rm-btn rm-btn-solid">
+                Retry quiz
+              </button>
+              <button type="button" onClick={onClose} className="rm-btn rm-btn-ghost">
+                Close
+              </button>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* ---- Per-question review ------------------------------------------- */}
+      <section>
+        <div className="rm-eyebrow">The breakdown</div>
+        <div className="mt-5 flex flex-col gap-3">
+          {questions.map((q, idx) => {
+            const isCorrect = correctById.get(q.id) ?? q.is_correct ?? false;
+            return (
+              <div key={q.id} className="qz-review">
                 <span
-                  className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px]"
+                  className="qz-verdict-mark"
                   style={{
-                    backgroundColor: isCorrect ? 'rgba(40,224,160,0.15)' : 'rgba(255,59,92,0.15)',
+                    background: isCorrect ? 'rgba(40, 224, 160, 0.14)' : 'rgba(255, 59, 92, 0.14)',
                     color: isCorrect ? 'var(--status-green)' : 'var(--status-red)',
                   }}
+                  aria-hidden="true"
                 >
                   {isCorrect ? '✓' : '✕'}
                 </span>
-                <div className="flex-1">
-                  <p className="text-sm" style={{ color: 'var(--text-primary)' }}>
-                    {idx + 1}. {q.prompt}
+                <div className="min-w-0 flex-1">
+                  <div className="rm-eyebrow rm-num">Question {pad2(idx + 1)}</div>
+                  <p className="rm-wrap mt-2" style={{ fontSize: 14.5, lineHeight: 1.55, color: 'var(--text-primary)' }}>
+                    {q.prompt}
                   </p>
-                  <p className="mt-1.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                    Your answer: <span style={{ color: 'var(--text-secondary)' }}>{q.given_answer || '—'}</span>
+                  <p className="rm-micro rm-wrap mt-3">
+                    Your answer:{' '}
+                    <span style={{ color: isCorrect ? 'var(--status-green)' : 'var(--text-secondary)' }}>
+                      {q.given_answer || '—'}
+                    </span>
                   </p>
                   {!isCorrect && (
-                    <p className="mt-0.5 text-xs" style={{ color: 'var(--text-muted)' }}>
-                      Correct: <span style={{ color: 'var(--text-secondary)' }}>{q.correct_answer}</span>
+                    <p className="rm-micro rm-wrap mt-1">
+                      Correct: <span style={{ color: 'var(--status-green)' }}>{q.correct_answer}</span>
                     </p>
                   )}
                   {q.explanation && (
-                    <p className="mt-2 text-xs italic" style={{ color: 'var(--text-secondary)' }}>
+                    <p className="rm-body rm-wrap mt-3" style={{ fontSize: 13.5 }}>
                       {q.explanation}
                     </p>
                   )}
                 </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center justify-center gap-3 pb-4">
-        {passed ? (
-          <button onClick={onClose} className="btn-primary px-6 py-2.5 text-sm font-semibold">
-            Back to constellation
-          </button>
-        ) : (
-          <>
-            <button onClick={onClose} className="glass-chip btn-chip px-5 py-2.5 text-sm font-medium">
-              Close
-            </button>
-            <button onClick={onRetry} className="btn-primary px-6 py-2.5 text-sm font-semibold">
-              Retry quiz
-            </button>
-          </>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      </section>
     </motion.div>
   );
 }
