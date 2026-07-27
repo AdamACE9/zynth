@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { Hero3D, type SpotStatus } from './Hero3D';
+import { MiniNode3D } from './MiniNode3D';
+import { FanInDiagram, IconCopilot, IconExam, IconExplain, IconGraph, IconPlan, IconQuiz, MeterRing, RuleStateMachine } from './Diagrams';
 import './site.css';
 
 export interface LandingProps {
@@ -130,18 +132,23 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
       <main id="top">
         {/* ── hero ───────────────────────────────────────────────────── */}
         <section className="hero sheet" style={{ paddingBlock: 'clamp(48px,7vw,88px) clamp(56px,7vw,96px)' }}>
-          <div className="grid items-center gap-12 lg:grid-cols-[1.08fr_0.92fr] lg:gap-16">
+          {/* animated corner wash — atmosphere only, see site.css .hero-wash */}
+          <div className="hero-wash" aria-hidden />
+          <div className="hero-content grid items-center gap-12 lg:grid-cols-[1fr_1.05fr] lg:gap-16">
             <div>
               <Ink>
                 <div className="t-tag">Student Learning OS — est. 2026</div>
               </Ink>
 
+              {/* Blur+translateY "settle" reveal — the hero-text keyframe both
+                  references use (Chorus's heroFadeInUp; Anthropic's
+                  opacity+transform scroll-ins), not a flat fade. */}
               <motion.h1
                 className="t-hero mt-7"
                 style={{ maxWidth: '13ch' }}
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+                initial={{ opacity: 0, y: 20, filter: 'blur(9px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
               >
                 The truth about what you{' '}
                 <span style={{ color: 'var(--accent-cyan)' }}>actually</span> know.
@@ -150,9 +157,9 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               <motion.p
                 className="t-lede mt-8"
                 style={{ maxWidth: '48ch' }}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.7, delay: 0.15 }}
+                initial={{ opacity: 0, y: 10, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                transition={{ duration: 0.7, delay: 0.15, ease: [0.16, 1, 0.3, 1] }}
               >
                 Zynth keeps a case file on every concept in your syllabus. Nothing counts as known until you have
                 produced evidence for it — and a quiz is the only evidence it accepts.
@@ -241,37 +248,53 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               lede="Most study apps mark a topic done the moment you look at it. Zynth treats that as hearsay. A concept has exactly three states, and only one of them means you can actually do it."
             />
 
-            <div className="mt-16">
-              {[
-                { s: 'red' as const, k: 'Red', h: 'No evidence.', b: 'Where every concept starts, and where it returns after a failed retest. Re-reading the chapter nine times does not move it.' },
-                { s: 'amber' as const, k: 'Amber', h: 'Engaged. Unproven.', b: 'You took it to the War Room or sat with the tutor. Zynth records that you met the idea — not that you can use it.' },
-                { s: 'green' as const, k: 'Green', h: 'Proven.', b: 'You passed a quiz on it. The only route to green, and a reversible one: fail a retest later and the verdict is vacated.' },
-              ].map((r, idx) => (
-                <Ink key={r.s} delay={idx * 0.07}>
-                  <div
-                    className="grid items-start gap-4 py-8 md:grid-cols-[130px_minmax(0,1fr)_minmax(0,1.5fr)] md:gap-10"
-                    style={{ borderTop: '1px solid var(--border-glass)' }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Dot hue={HUE[r.s]} size={11} />
-                      <span className="t-tag" style={{ color: HUE[r.s], letterSpacing: '0.16em' }}>
-                        {r.k}
-                      </span>
-                    </div>
-                    <h3 className="t-sub">{r.h}</h3>
-                    <p className="t-body">{r.b}</p>
+            <div className="mt-14 grid gap-12 lg:grid-cols-[0.95fr_1.3fr] lg:gap-14 lg:items-start">
+              {/* the diagram — an authored SVG state machine, not a screenshot */}
+              <div>
+                <div className="visual-frame" style={{ aspectRatio: '380 / 210', padding: 'clamp(14px,2vw,22px)' }}>
+                  <RuleStateMachine />
+                </div>
+                <div className="mt-4 flex items-center gap-3">
+                  <div style={{ width: 46, height: 46 }} aria-hidden>
+                    <MiniNode3D />
                   </div>
-                </Ink>
-              ))}
-              <div className="hair" />
-            </div>
+                  <span className="t-tag">The same three states, live — not a diagram of the product, the product</span>
+                </div>
+              </div>
 
-            <Ink delay={0.1}>
-              <p className="mono mt-8" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                Enforced by a database trigger, not by the interface — an illegal transition is rejected at the data
-                layer even if something upstream asks for it.
-              </p>
-            </Ink>
+              <div>
+                {[
+                  { s: 'red' as const, k: 'Red', h: 'No evidence.', b: 'Where every concept starts, and where it returns after a failed retest. Re-reading the chapter nine times does not move it.' },
+                  { s: 'amber' as const, k: 'Amber', h: 'Engaged. Unproven.', b: 'You took it to the War Room or sat with the tutor. Zynth records that you met the idea — not that you can use it.' },
+                  { s: 'green' as const, k: 'Green', h: 'Proven.', b: 'You passed a quiz on it. The only route to green, and a reversible one: fail a retest later and the verdict is vacated.' },
+                ].map((r, idx) => (
+                  <Ink key={r.s} delay={idx * 0.07}>
+                    <div
+                      className="grid items-start gap-3 py-7 md:grid-cols-[112px_minmax(0,1fr)] md:gap-8"
+                      style={{ borderTop: idx === 0 ? 'none' : '1px solid var(--border-glass)' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Dot hue={HUE[r.s]} size={11} />
+                        <span className="t-tag" style={{ color: HUE[r.s], letterSpacing: '0.16em' }}>
+                          {r.k}
+                        </span>
+                      </div>
+                      <div>
+                        <h3 className="t-sub">{r.h}</h3>
+                        <p className="t-body mt-2">{r.b}</p>
+                      </div>
+                    </div>
+                  </Ink>
+                ))}
+                <div className="hair" />
+                <Ink delay={0.1}>
+                  <p className="mono mt-8" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                    Enforced by a database trigger, not by the interface — an illegal transition is rejected at the
+                    data layer even if something upstream asks for it.
+                  </p>
+                </Ink>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -285,7 +308,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               lede="Open a weak node and five AI personas argue it out in front of you — an analogy, a rigorous definition, a real-world use, and a skeptic trying to break all three. They answer each other, not you."
             />
             <Ink delay={0.1}>
-              <div className="glass-panel mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
+              <div className="glass-panel showcase mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
                 <div className="flex flex-wrap items-baseline justify-between gap-3 pb-6" style={{ borderBottom: '1px solid var(--border-glass)' }}>
                   <span className="t-tag">Transcript — Calculus / Chain Rule</span>
                   <span className="t-tag" style={{ color: 'var(--status-amber)' }}>
@@ -294,22 +317,28 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 </div>
                 <div className="mt-7 flex flex-col gap-6">
                   {[
-                    ['Analogist', 'Ok so the chain rule is basically a recipe step — do it out of order and everything after it quietly breaks.'],
-                    ['Purist', "The Analogist's kitchen thing works, but it's more precise to say you're multiplying one rate of change by another."],
-                    ['Real World', 'Fair point Purist — but this is exactly the step that bites people later in physics.'],
-                    ['Skeptic', 'Hang on. Does that still hold when the inner function is itself a composition?'],
-                    ['Synthesis', "Skeptic's right to push. Outer rate times inner rate, all the way down. That's the version to keep."],
-                  ].map(([who, line], idx) => (
+                    ['Analogist', 'A', 'var(--accent-violet)', 'Ok so the chain rule is basically a recipe step — do it out of order and everything after it quietly breaks.'],
+                    ['Purist', 'P', 'var(--accent-cyan)', "The Analogist's kitchen thing works, but it's more precise to say you're multiplying one rate of change by another."],
+                    ['Real World', 'R', 'var(--accent-violet)', 'Fair point Purist — but this is exactly the step that bites people later in physics.'],
+                    ['Skeptic', 'S', 'var(--accent-cyan)', 'Hang on. Does that still hold when the inner function is itself a composition?'],
+                    ['Synthesis', 'Σ', 'var(--accent-cyan)', "Skeptic's right to push. Outer rate times inner rate, all the way down. That's the version to keep."],
+                  ].map(([who, initial, hue, line], idx) => (
                     <motion.div
                       key={who}
-                      className="grid gap-2 md:grid-cols-[128px_minmax(0,1fr)] md:gap-8"
+                      className="grid gap-2 md:grid-cols-[152px_minmax(0,1fr)] md:gap-8"
                       initial={{ opacity: 0 }}
                       whileInView={{ opacity: 1 }}
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ duration: 0.4, delay: idx * 0.12 }}
                     >
-                      <div className="t-tag" style={{ paddingTop: 3 }}>
-                        {String(idx + 1).padStart(2, '0')} {who}
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="avatar"
+                          style={{ background: `color-mix(in srgb, ${hue} 16%, transparent)`, color: hue, borderColor: `color-mix(in srgb, ${hue} 45%, transparent)` }}
+                        >
+                          {initial}
+                        </span>
+                        <span className="t-tag">{who}</span>
                       </div>
                       <p style={{ fontSize: '1.0625rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>{line}</p>
                     </motion.div>
@@ -334,31 +363,42 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               lede="Paste the wrong answers from a past paper. Zynth reads across all of them at once, names the single misconception underneath, and then rewires your graph — drawing edges between the concepts that keep failing together."
             />
             <Ink delay={0.1}>
-              <div className="glass-panel mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <span className="t-tag">Finding 01 — confidence 0.95</span>
-                  <span className="t-tag">07 mistakes · 03 concepts</span>
+              <div className="glass-panel showcase mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
+                <div className="flex flex-wrap items-start gap-6">
+                  <MeterRing value={0.95} size={68} />
+                  <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+                    <div className="flex flex-wrap items-baseline justify-between gap-3">
+                      <span className="t-tag">Finding 01 — confidence 0.95</span>
+                      <span className="t-tag">07 mistakes · 03 concepts</span>
+                    </div>
+                    <h3 className="display mt-4" style={{ fontSize: 'clamp(1.4rem,2.6vw,2.1rem)', lineHeight: 1.14 }}>
+                      You drop the negative when the inner function is decreasing.
+                    </h3>
+                  </div>
                 </div>
-                <h3 className="display mt-5" style={{ fontSize: 'clamp(1.6rem,3vw,2.4rem)', lineHeight: 1.1 }}>
-                  You drop the negative when the inner function is decreasing.
-                </h3>
-                <p className="t-body mt-5" style={{ maxWidth: '58ch' }}>
+                <p className="t-body mt-6" style={{ maxWidth: '58ch' }}>
                   Seven separate wrong answers across three topics, one cause. Not carelessness — a rule you learned
                   with the sign attached to the wrong term.
                 </p>
-                <div className="mt-8 grid gap-px" style={{ background: 'var(--border-glass)' }}>
-                  {[
-                    ['Chain Rule', 'Implicit Differentiation'],
-                    ['Implicit Differentiation', 'Related Rates'],
-                    ['Chain Rule', 'Related Rates'],
-                  ].map(([a, b]) => (
-                    <div key={`${a}${b}`} className="flex flex-wrap items-center gap-3 py-4" style={{ background: 'var(--surface-glass-strong)' }}>
-                      <span className="t-tag">edge drawn</span>
-                      <span style={{ fontSize: '1.0625rem', color: 'var(--text-primary)' }}>{a}</span>
-                      <span style={{ color: 'var(--status-amber)' }}>↔</span>
-                      <span style={{ fontSize: '1.0625rem', color: 'var(--text-primary)' }}>{b}</span>
-                    </div>
-                  ))}
+
+                <div className="mt-9 grid gap-8 lg:grid-cols-[1.15fr_1fr] lg:items-center">
+                  <div className="grid gap-px" style={{ background: 'var(--border-glass)' }}>
+                    {[
+                      ['Chain Rule', 'Implicit Differentiation'],
+                      ['Implicit Differentiation', 'Related Rates'],
+                      ['Chain Rule', 'Related Rates'],
+                    ].map(([a, b]) => (
+                      <div key={`${a}${b}`} className="flex flex-wrap items-center gap-3 py-4" style={{ background: 'var(--surface-glass-strong)' }}>
+                        <span className="t-tag">edge drawn</span>
+                        <span style={{ fontSize: '1.0625rem', color: 'var(--text-primary)' }}>{a}</span>
+                        <span style={{ color: 'var(--status-amber)' }}>↔</span>
+                        <span style={{ fontSize: '1.0625rem', color: 'var(--text-primary)' }}>{b}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="visual-frame" style={{ aspectRatio: '380 / 190', padding: 'clamp(12px,1.6vw,20px)' }}>
+                    <FanInDiagram />
+                  </div>
                 </div>
               </div>
             </Ink>
@@ -371,19 +411,19 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
             <Exhibit n="04" tag="The rest of the file" title={<>Every part writes to the same map.</>} />
             <div className="mt-14">
               {[
-                ['Knowledge Graph', 'Your syllabus as one living 3D map. Click any node to see precisely what you can and cannot prove.', false],
-                ['Quiz', 'Questions generated for the exact concept in front of you, graded on the spot. The only route to green.', false],
-                ['Explain', 'A one-to-one tutor that already holds your file — this concept, your mistakes, your trend. You never brief it first.', false],
-                ['Live Co-Pilot', 'Watches a quiz in progress and interrupts the moment a concept collapses, with a diagnosis rather than a red cross.', true],
-                ['Study Plan', 'A route across the graph toward your goal that re-plans itself every time the evidence changes.', true],
-                ['Exam Simulator', 'A timed past paper where the agent shows its own reasoning, then maps every lost mark back to a node.', true],
-              ].map(([t, b, soon], idx) => (
+                ['Knowledge Graph', 'Your syllabus as one living 3D map. Click any node to see precisely what you can and cannot prove.', false, <IconGraph key="i" />, 'cyan'],
+                ['Quiz', 'Questions generated for the exact concept in front of you, graded on the spot. The only route to green.', false, <IconQuiz key="i" />, 'violet'],
+                ['Explain', 'A one-to-one tutor that already holds your file — this concept, your mistakes, your trend. You never brief it first.', false, <IconExplain key="i" />, 'cyan'],
+                ['Live Co-Pilot', 'Watches a quiz in progress and interrupts the moment a concept collapses, with a diagnosis rather than a red cross.', true, <IconCopilot key="i" />, 'violet'],
+                ['Study Plan', 'A route across the graph toward your goal that re-plans itself every time the evidence changes.', true, <IconPlan key="i" />, 'cyan'],
+                ['Exam Simulator', 'A timed past paper where the agent shows its own reasoning, then maps every lost mark back to a node.', true, <IconExam key="i" />, 'violet'],
+              ].map(([t, b, soon, icon, tint], idx) => (
                 <Ink key={t as string} delay={idx * 0.05}>
                   <div
-                    className="grid gap-3 py-7 md:grid-cols-[48px_minmax(0,1fr)_minmax(0,1.6fr)] md:gap-10"
-                    style={{ borderTop: '1px solid var(--border-glass)', opacity: soon ? 0.62 : 1 }}
+                    className={`row tint-${tint as string} grid gap-4 py-7 md:grid-cols-[40px_minmax(0,1fr)_minmax(0,1.6fr)] md:gap-10 md:items-start`}
+                    style={{ opacity: soon ? 0.72 : 1 }}
                   >
-                    <span className="t-tag pt-1">{String(idx + 1).padStart(2, '0')}</span>
+                    <div className="icon-tile">{icon}</div>
                     <h3 className="t-sub">{t as string}</h3>
                     <div>
                       <p className="t-body">{b as string}</p>
@@ -394,6 +434,34 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               ))}
               <div className="hair" />
             </div>
+
+            {/* one full mockup, screenshot-framed exactly like the reference
+                sites frame product imagery: fixed radius, hairline border,
+                soft shadow, generous surrounding whitespace. */}
+            <Ink delay={0.1}>
+              <div className="visual-frame mt-14" style={{ padding: 'clamp(20px,2.6vw,32px)' }}>
+                <div className="flex flex-wrap items-center justify-between gap-3 pb-5" style={{ borderBottom: '1px solid var(--border-glass)' }}>
+                  <span className="t-tag">Quiz — Implicit Differentiation</span>
+                  <span className="t-tag" style={{ color: 'var(--status-green)' }}>
+                    4 / 5 — passed
+                  </span>
+                </div>
+                <div className="mt-5 flex flex-col gap-3.5">
+                  {[
+                    ['Differentiate x²y = 4 implicitly for dy/dx.', 'green'],
+                    ['Which term here needs the product rule?', 'green'],
+                    ['Solve for dy/dx after differentiating.', 'red'],
+                    ['State the value of dy/dx at (2, 1).', 'green'],
+                    ['Explain why the chain rule applies to y².', 'green'],
+                  ].map(([q, s], i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <Dot hue={HUE[s as SpotStatus]} size={8} />
+                      <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>{q}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Ink>
           </div>
         </section>
 

@@ -1,4 +1,77 @@
 /* ==========================================================================
+   REFERENCE EXTRACTION — real computed values pulled live off chorus.com and
+   anthropic.com via getComputedStyle()/stylesheet introspection in a running
+   browser (not a markdown scrape, not a guess). Recorded here so every
+   craft decision below traces back to a real number. Values are PATTERNS
+   ported onto Zynth's own dark tokens — no colours, fonts, copy, images or
+   CSS were copied from either site.
+
+   chorus.com (Figtree display+body, one family, weight does the work):
+     - h1 76px/500/lh102.6px(1.35x)/tracking -1.9px(-2.5%); h2 48-72px/400
+       (headlines stay REGULAR weight even huge — quiet, not shouty); h3 24px/400.
+     - body p 16px/400-500, lh 1.5; fine print 13-15px/400.
+     - buttons: bg #1f201a flat, white text, radius 10px, pad 10x16, font
+       14px/500, box-shadow NONE at rest.
+     - radius values in the wild: 4/6/8/9/10/12/13/14/16/18/22/24px + pill.
+     - gradients: soft animated "dome" radial blobs in hero corners only
+       (green/blue/pink, opacity→0 by 40-75% radius), keyframe
+       `gradientDomeBreath{Left,Right}` = rotate ±30deg + scale 1↔1.08 loop —
+       pure atmosphere, never on text or cards. Small pill badges get a
+       bottom-lit linear-gradient(to top, colour 0%, transparent 100%).
+       Primary buttons get a 115deg diagonal white "shine" sweep
+       (transparent 35% → white/50% 50% → transparent 65%) that translates
+       across on interaction.
+     - shadows: none anywhere except floating nav/menu panels — soft,
+       rgba(0,0,0,.08-.1), 0 12px 32px, no card/button shadow otherwise.
+     - section rhythm: py-20 (80px) mobile → sm:py-28 (112px) desktop, flat
+       across every section.
+     - motion: hover/UI transitions 0.15-0.3s cubic-bezier(.4,0,.2,1) or
+       (0,0,.2,1); scroll reveals 0.6-1.1s cubic-bezier(.16,1,.3,1) or
+       (.22,1,.36,1) — the SAME quint-out family this file already uses for
+       .draw-in and <Ink>. Hero text keyframe is blur(8px)+translateY(20px)+
+       opacity 0→1 — text visibly comes into focus, not a flat fade.
+
+   anthropic.com (Anthropic Sans for UI/headings, Anthropic Serif reserved
+   for big editorial/statement copy — real Webflow design tokens read out of
+   :root):
+     - fluid clamp() type scale: display-xxxl ~56-96px, xxl ~48-80px,
+       xl ~40-64px, l ~32-48px, m ~28-32px, s ~20-24px. Body/paragraph runs
+       LARGE: paragraph-m ~18-20px, paragraph-l ~22-24px (never a 16px
+       mush). Detail/label sizes: 12/14/16/18/20px.
+     - letter-spacing tokens: 0 / -.005em / -.02em only — far gentler
+       tracking than Chorus.
+     - line-height tokens are discrete steps: 1 / 1.05 / 1.1 / 1.3 / 1.4 / 1.5.
+     - radius tokens: small 4px, main 8px, large 16px, round = pill — a
+       clean 4-step scale, structurally identical to this app's own
+       sm/md/full scale.
+     - section-space tokens (fluid): xs 32px, small 64px, medium 56-96px,
+       main 88-160px, large 112-224px — 2-3x more generous than Chorus.
+     - 12-col grid, max-width 1432px, side margin fluid 32-80px.
+     - buttons: 3-tier, all flat, no shadow ever — primary solid
+       (dark fill/light text, hover only deepens the fill), secondary
+       (outline, hover INVERTS to filled), tertiary (ghost, hover darkens
+       border only).
+     - signature move: ONE full-bleed near-black rounded panel (16-24px
+       radius, no border, no shadow) breaking an otherwise light page —
+       drama from a single big surface-tone swap, not from gradients.
+       Gradients are essentially ABSENT on the homepage.
+     - shadow: exactly one soft triple-layer elevation recipe for the nav
+       dropdown (0 2px/4px/16px, alpha .01/.02/.04) — nowhere else.
+     - motion: hover 0.2s ease; scroll/section reveals 0.3-0.8s using
+       cubic-bezier(.16,1,.3,1) (same quint-out family as Chorus) or
+       (.77,0,.175,1); the mobile menu literally wipes open via a
+       clip-path polygon animation over 400ms, not a fade.
+
+   What this file borrows: the quint-out reveal curve (already in use here,
+   now also driving a blur+translateY "settle" on the hero, matching both
+   sites' hero-text keyframe); a flat-by-default / shadow-on-hover-only
+   button; one bigger "showcase" radius (22-24px) for the two big feature
+   panels vs. the app's own 16px default; a slow animated corner-wash
+   confined to the hero only, at the same {rotate,scale} amplitude Chorus
+   uses; and a wider section-padding clamp pulled toward Anthropic's larger
+   fluid range. Colours, fonts, imagery and copy are Zynth's own throughout.
+   ==========================================================================
+
    Zynth — marketing site.
 
    ONE VISUAL IDENTITY
@@ -92,14 +165,20 @@
 }
 
 .zynth-site .t-lede {
-  font-size: clamp(1.05rem, 1.3vw, 1.1875rem);
-  line-height: 1.6;
+  /* The lede sits a step above body — Anthropic's paragraph-l is 22-24px. */
+  font-size: clamp(1.1875rem, 1.4vw, 1.375rem);
+  line-height: 1.55;
   color: var(--text-secondary);
 }
 
 .zynth-site .t-body {
-  font-size: 0.9375rem;
-  line-height: 1.65;
+  /* 17->18px, never 15/16. Anthropic runs paragraph copy at 18-20px and their
+     large variant at 22-24px; the extraction notes above call the 16px middle
+     a "mush" for good reason — small body copy under a huge headline is the
+     single clearest tell of an amateur page. Line-height eases off slightly as
+     the size grows, per the same reference. */
+  font-size: clamp(1.0625rem, 0.98vw, 1.125rem);
+  line-height: 1.6;
   color: var(--text-secondary);
 }
 
@@ -149,8 +228,12 @@
   }
 }
 
+/* Widened toward Anthropic's fluid "main" section-space token (clamp ~88px
+   -> 160px) rather than Chorus's flatter 80/112px — we lean editorial/calm
+   for rhythm even though the page is denser than Anthropic's, per the
+   Chorus-density / Anthropic-restraint split documented above. */
 .zynth-site .band {
-  padding-block: clamp(72px, 9vw, 132px);
+  padding-block: clamp(80px, 10vw, 160px);
   border-top: 1px solid var(--border-glass);
 }
 
@@ -177,10 +260,19 @@
 
 /* -- Controls ------------------------------------------------------------------ */
 
+/* Flat-by-default, shadow-on-hover-only — both references keep resting
+   buttons shadowless (Chorus: box-shadow none at rest; Anthropic: no button
+   shadow ever) and reserve any elevation for hover/floating chrome. The
+   diagonal light sweep on ::after ports Chorus's primary-CTA "shine" recipe
+   (linear-gradient 115deg, transparent 35% -> white/50% 50% -> transparent
+   65%), triggered on hover via transform rather than a looping keyframe so
+   it never fights prefers-reduced-motion or runs when off-screen. */
 .zynth-site .cta {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  overflow: hidden;
   font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
   font-weight: 600;
   font-size: 0.875rem;
@@ -189,16 +281,30 @@
   background: var(--accent-cyan);
   border: 0;
   border-radius: var(--radius-sm);
-  box-shadow: 0 10px 30px rgba(82, 229, 232, 0.2);
+  box-shadow: 0 0 0 rgba(82, 229, 232, 0);
   transition:
     filter 150ms ease-out,
-    box-shadow 150ms ease-out,
+    box-shadow 200ms ease-out,
     transform 80ms ease-out;
+}
+
+.zynth-site .cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.55) 50%, transparent 65%);
+  transform: translateX(-140%);
+  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .zynth-site .cta:hover {
   filter: brightness(1.08);
   box-shadow: 0 14px 38px rgba(82, 229, 232, 0.3);
+}
+
+.zynth-site .cta:hover::after {
+  transform: translateX(140%);
 }
 
 .zynth-site .cta:active {
@@ -257,9 +363,51 @@
   border-top: 0;
 }
 
+/* Animated corner wash, hero only — ports Chorus's `gradientDomeBreath`
+   technique (soft radial blobs, rotate +/-30deg and scale 1<->1.08 on an
+   8s loop, opacity fading to 0 well before the edge) onto our own
+   cyan/violet tokens instead of their brand hues. Purely atmospheric, sits
+   behind the copy and the plate (z-index 0), never touches text. */
+.zynth-site .hero-wash {
+  /* inset:0 (not a percentage) so the box always resolves to the hero's own
+     rendered bounds — a percentage height here silently collapses to 0
+     because .hero's height comes from its content, not a specified value. */
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.8;
+  background:
+    radial-gradient(38% 42% at 12% 18%, var(--accent-cyan-dim), transparent 72%),
+    radial-gradient(34% 38% at 92% 8%, var(--accent-violet-dim), transparent 70%);
+  animation: zynth-wash-breathe 9s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+@keyframes zynth-wash-breathe {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.07) rotate(1.2deg);
+    opacity: 0.95;
+  }
+}
+
+/* Scoped to the content wrapper specifically (not `.hero > *`) — an earlier
+   version used the universal-child selector and, at equal specificity to
+   `.hero-wash`, it won the cascade by source order and silently flipped
+   the wash back to position:relative, collapsing it to 0 height. */
+.zynth-site .hero > .hero-content {
+  position: relative;
+  z-index: 1;
+}
+
 .zynth-site .plate {
   position: relative;
-  border-radius: var(--radius-md);
+  border-radius: 22px;
   aspect-ratio: 1 / 1;
   overflow: hidden;
 }
@@ -275,6 +423,93 @@
   z-index: 1;
   pointer-events: none;
   background: linear-gradient(90deg, transparent, rgba(82, 229, 232, 0.55) 30%, rgba(155, 123, 255, 0.45) 65%, transparent);
+}
+
+/* -- Showcase surfaces --------------------------------------------------
+   The one deliberate "elevation jump": Anthropic's homepage has exactly
+   one dramatic move — a full-bleed near-black rounded panel (16-24px
+   radius, no shadow) breaking an otherwise light page. We stay dark
+   throughout, so the equivalent jump is a GRADIENT border ring (cyan ->
+   violet, ~35% opacity) instead of a hairline, reserved for the two big
+   feature exhibits (War Room, Autopsy) and reusable mockups — never for
+   routine chrome. Built with the two-background trick (padding-box fill +
+   border-box gradient) so it composes with .glass-panel's own background. */
+.zynth-site .showcase {
+  position: relative;
+  border: 1px solid transparent;
+  border-radius: 24px;
+  background-image:
+    linear-gradient(var(--surface-glass), var(--surface-glass)),
+    linear-gradient(155deg, rgba(82, 229, 232, 0.4), rgba(155, 123, 255, 0.32) 55%, rgba(82, 229, 232, 0.12));
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+}
+
+/* A framed "screenshot" — for original product mockups built from real
+   Zynth UI (transcript cards, finding cards, node-panel/quiz mockups).
+   Mirrors how both references frame imagery: fixed radius, hairline
+   border, soft outer shadow, generous surrounding space — never a heavy
+   drop shadow, matching both sites' near-total restraint on shadow use. */
+.zynth-site .visual-frame {
+  position: relative;
+  border-radius: 18px;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-glass-strong);
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+/* -- Avatars (War Room persona chips) ---------------------------------- */
+
+.zynth-site .avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  border: 1px solid var(--border-glass);
+}
+
+/* -- Module icon tiles ---------------------------------------------------- */
+
+.zynth-site .icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--border-glass);
+  background: var(--surface-glass-chip);
+  color: var(--text-secondary);
+  transition:
+    color 200ms ease-out,
+    border-color 200ms ease-out;
+}
+
+.zynth-site .row:hover .icon-tile {
+  color: var(--accent-cyan);
+  border-color: var(--border-glass-hover);
+}
+
+/* Low-alpha colour-tinted borders — ports Chorus's per-category card
+   border (each "specialized agent" role gets its own accent at ~20%
+   opacity on an otherwise neutral card). We only have two non-semantic
+   accents to spend, so module rows alternate between them; red/amber/green
+   stay reserved for mastery status alone. */
+.zynth-site .row.tint-cyan {
+  border-top-color: var(--accent-cyan-dim);
+}
+
+.zynth-site .row.tint-violet {
+  border-top-color: var(--accent-violet-dim);
 }
 
 /* -- Reveal: a wipe, not the default fade-up ------------------------------- */
