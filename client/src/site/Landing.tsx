@@ -99,7 +99,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
             ))}
           </nav>
           <button onClick={onEnter} className="btn btn-ink" style={{ padding: '9px 16px' }}>
-            Open
+            Go to Zynth
           </button>
         </div>
       </header>
@@ -142,7 +142,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 transition={{ duration: 0.7, delay: 0.25 }}
               >
                 <button onClick={onEnter} className="btn btn-ink" style={{ padding: '15px 26px' }}>
-                  Open the graph
+                  Go to Zynth
                 </button>
                 <button onClick={onStartTour} className="btn btn-out" style={{ padding: '15px 22px' }}>
                   Take the tour
@@ -425,7 +425,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               </h2>
               <div className="mt-10 flex flex-wrap justify-center gap-3">
                 <button onClick={onEnter} className="btn btn-ink" style={{ padding: '16px 30px' }}>
-                  Open the graph
+                  Go to Zynth
                 </button>
                 <button onClick={onStartTour} className="btn btn-out" style={{ padding: '16px 24px' }}>
                   Take the tour
@@ -452,7 +452,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               GitHub ↗
             </a>
             <button onClick={onEnter} className="t-tag">
-              Open the app
+              Go to Zynth
             </button>
           </div>
         </div>

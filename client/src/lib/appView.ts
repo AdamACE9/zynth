@@ -157,8 +157,13 @@ export function useAppView(): AppViewState {
     const hash = window.location.hash;
     if (hash === '#/app') return 'graph';
     if (hash === '#/onboarding') return 'onboarding';
-    if (readOnboarded()) return 'graph';
-    if (readDraft()) return 'onboarding';
+    // Everything else ALWAYS lands on the marketing site. Two earlier versions
+    // hijacked this and made the site unreachable: one sent anyone with an
+    // existing workspace straight to the graph, and one dropped you into
+    // onboarding whenever a half-finished draft was lying in localStorage —
+    // which is why refreshing kept restarting subject-selection.
+    // A saved draft still resumes, but only once you actually choose to go in.
+    // The site is the front door; "Go to Zynth" is the only way through it.
     return 'landing';
   });
 
@@ -170,22 +175,20 @@ export function useAppView(): AppViewState {
     if (draft) setOnboardingMode(draft.mode);
 
     let cancelled = false;
+    // We ask the server whether a graph already exists, but ONLY to decide where
+    // "Go to Zynth" should take you — straight to your graph, or through setup.
+    // It must never navigate on its own: the site stays on screen until you
+    // choose to go in.
     listWorkspaces()
       .then((workspaces) => {
         if (cancelled) return;
-        if (workspaces.length > 0) {
-          setHasOnboarded(true);
-          try {
-            localStorage.setItem(ONBOARDED_KEY, '1');
-          } catch {
-            /* private mode / storage disabled */
-          }
-          setView('graph');
-        } else {
-          // Genuinely nothing on the server yet — a stale "onboarded" flag from
-          // a wiped database must not skip real setup.
-          setHasOnboarded(false);
-          setView(draft ? 'onboarding' : 'landing');
+        const exists = workspaces.length > 0;
+        setHasOnboarded(exists);
+        try {
+          if (exists) localStorage.setItem(ONBOARDED_KEY, '1');
+          else localStorage.removeItem(ONBOARDED_KEY);
+        } catch {
+          /* private mode / storage disabled */
         }
       })
       .catch((err) => {
@@ -211,9 +214,17 @@ export function useAppView(): AppViewState {
     clearDraft();
   }, []);
 
+  /**
+   * "Go to Zynth" — the site's way in. If a graph already exists you go
+   * straight to it; a first-time visitor goes through setup. Re-checks the
+   * server rather than trusting a possibly-stale localStorage flag, so a wiped
+   * database can never drop you into an empty graph with no way to build one.
+   */
   const enterApp = useCallback(() => {
     setOnboardingMode('full');
-    setView(readOnboarded() ? 'graph' : 'onboarding');
+    listWorkspaces()
+      .then((workspaces) => setView(workspaces.length > 0 ? 'graph' : 'onboarding'))
+      .catch(() => setView(readOnboarded() ? 'graph' : 'onboarding'));
   }, []);
 
   const startOnboarding = useCallback(() => {
