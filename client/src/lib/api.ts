@@ -1,6 +1,19 @@
 import type { Edge, ExplainMessage, MistakeRecord, Node, QuizQuestion, QuizSession } from '@zynth/shared';
 import { mockGraph } from './mockGraph';
 
+/**
+ * Where the API lives. Empty in dev + single-origin deploys, so every call
+ * stays a relative /api/... path and Vite's proxy handles it. When the frontend
+ * is hosted apart from the backend (Vercel + Render), set VITE_API_BASE to the
+ * backend origin, e.g. https://zynth-api.onrender.com — no trailing slash.
+ */
+export const API_BASE: string = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '');
+
+/** Prefixes an /api path with API_BASE when one is configured. */
+export function apiUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
+
 export interface GraphPayload {
   nodes: Node[];
   edges: Edge[];
@@ -14,7 +27,7 @@ export interface GraphPayload {
  */
 export async function fetchGraph(): Promise<GraphPayload> {
   try {
-    const res = await fetch('/api/graph');
+    const res = await fetch(apiUrl('/api/graph'));
     if (!res.ok) {
       throw new Error(`GET /api/graph responded ${res.status}`);
     }
@@ -41,7 +54,7 @@ export async function fetchGraph(): Promise<GraphPayload> {
  * backend isn't running (see ui/NodePanel.tsx).
  */
 export async function engageNode(nodeId: string): Promise<Node> {
-  const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/engage`, {
+  const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/engage`), {
     method: 'POST',
   });
   if (!res.ok) {
@@ -63,7 +76,7 @@ export async function engageNode(nodeId: string): Promise<Node> {
  * NOTE: the backend endpoint is currently a 501 stub (Day 2 feature work).
  */
 export async function startWarRoomStream(nodeId: string): Promise<{ session_id: string }> {
-  const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/war-room/stream`, {
+  const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/war-room/stream`), {
     method: 'POST',
   });
   if (!res.ok) {
@@ -77,7 +90,7 @@ export async function startWarRoomStream(nodeId: string): Promise<{ session_id: 
  * currently a 501 stub (Day 2 feature work).
  */
 export async function generateQuiz(nodeIds: string[]): Promise<{ quiz_id: string; questions: QuizQuestion[] }> {
-  const res = await fetch('/api/quiz/generate', {
+  const res = await fetch(apiUrl('/api/quiz/generate'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ node_ids: nodeIds }),
@@ -97,7 +110,7 @@ export async function submitQuiz(payload: {
   node_ids: string[];
   questions: QuizQuestion[];
 }): Promise<{ session: QuizSession; updated: Node[]; per_question: { id: string; is_correct: boolean }[] }> {
-  const res = await fetch('/api/quiz/submit', {
+  const res = await fetch(apiUrl('/api/quiz/submit'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -122,7 +135,7 @@ export async function sendExplainMessage(
   message: string,
   sessionId?: string,
 ): Promise<{ session_id: string; messages: ExplainMessage[]; tutor_reply: string }> {
-  const res = await fetch(`/api/nodes/${encodeURIComponent(nodeId)}/explain`, {
+  const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/explain`), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, session_id: sessionId }),
@@ -142,7 +155,7 @@ export async function sendExplainMessage(
 export async function runAutopsy(
   text: string,
 ): Promise<{ mistakes: MistakeRecord[]; clusters: any[]; new_edges: Edge[]; new_nodes: Node[] }> {
-  const res = await fetch('/api/autopsy', {
+  const res = await fetch(apiUrl('/api/autopsy'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text }),

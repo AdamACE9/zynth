@@ -7,7 +7,10 @@ let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
 /** Lazily-created singleton — default path/origin, proxied to :3001 in dev (vite.config.ts). */
 export function getSocket(): Socket<ServerToClientEvents, ClientToServerEvents> {
   if (!socket) {
-    socket = io({
+    // Same-origin in dev (Vite proxies it). When the backend lives elsewhere
+    // (Vercel frontend + Render backend) VITE_API_BASE points the socket at it.
+    const base = (import.meta.env.VITE_API_BASE ?? '').replace(/\/+$/, '');
+    socket = io(base || undefined, {
       path: '/socket.io',
       autoConnect: true,
       reconnection: true,
