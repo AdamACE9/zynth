@@ -318,7 +318,14 @@ export function Quiz({ node, onClose, patchNode, replaceNode }: QuizProps) {
       {/* ---- Body ----------------------------------------------------------- */}
       <div className="rm-scroll flex-1">
         <div className="rm-pad mx-auto w-full max-w-3xl py-8 sm:py-12">
-          <AnimatePresence mode="wait">
+          {/* NOT mode="wait": that holds the outgoing phase mounted until its
+              exit animation completes, and a stalled exit has frozen this app
+              three separate times — most recently leaving a loading panel
+              mounted at opacity 0 forever. On the one screen that is the only
+              route to a green node, a frozen phase transition means the quiz
+              simply never appears. Phases are mutually exclusive and keyed, so
+              an instant swap is correct anyway. */}
+          <AnimatePresence>
             {phase === 'loading' && (
               <motion.div
                 key="loading"
