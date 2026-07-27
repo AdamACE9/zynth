@@ -1,88 +1,285 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import type { OnboardingPrefs } from '../lib/appView';
+import type { OnboardingDraft, OnboardingMode, OnboardingPrefs } from '../lib/appView';
+import { clearDraft, readDraft, writeDraft } from '../lib/appView';
+import { activateWorkspace, createWorkspace, type Workspace, type WorkspaceDepth } from '../lib/api';
 import './onboarding.css';
-import { DEFAULT_SUBJECTS, FOCUS_RING, SUBJECT_OPTIONS } from './constants';
+import { FOCUS_RING, MAX_SUBJECTS, SUBJECT_GROUPS } from './constants';
 import { WelcomeStep } from './steps/WelcomeStep';
 import { MasteryRuleStep } from './steps/MasteryRuleStep';
 import { SubjectsStep } from './steps/SubjectsStep';
+import { LevelStep } from './steps/LevelStep';
 import { GoalStep } from './steps/GoalStep';
-import { DoneStep } from './steps/DoneStep';
+import { BuildStep, type BuildPhase } from './steps/BuildStep';
 
 export interface OnboardingProps {
-  /** Finish setup with the collected prefs — drops the student into the graph. */
-  onComplete: (prefs: OnboardingPrefs) => void;
-  /** Skip the whole flow — straight to the graph. */
+  /** Full first-run tour, or just enough to spin up one more graph. */
+  mode: OnboardingMode;
+  /** Carried over so a returning student adding a workspace doesn't have to re-type their name. */
+  namePrefill?: string;
+  /** Finish setup: the workspace is already created + activated by the time this fires. */
+  onComplete: (prefs: OnboardingPrefs, workspace: Workspace | null) => void;
+  /** Skip/abandon the whole flow — back to whatever's already there. */
   onSkip: () => void;
-  /** Back out to the public site. */
+  /** Back out of the very first step. In 'full' mode: the public site. In 'newWorkspace' mode: same as onSkip. */
   onBackToSite: () => void;
 }
 
-type StepId = 'welcome' | 'mastery' | 'subjects' | 'goal' | 'done';
+type StepId = 'welcome' | 'subjects' | 'level' | 'goal' | 'mastery' | 'build';
 
-/** `n` is the narrative numeral shown in the rail — `[01] Welcome`, etc. */
-const STEPS: { id: StepId; n: string; title: string }[] = [
+const FULL_STEPS: { id: StepId; n: string; title: string }[] = [
   { id: 'welcome', n: '01', title: 'Welcome' },
-  { id: 'mastery', n: '02', title: 'The mastery rule' },
-  { id: 'subjects', n: '03', title: 'Your subjects' },
+  { id: 'subjects', n: '02', title: 'Your subjects' },
+  { id: 'level', n: '03', title: 'Your level' },
   { id: 'goal', n: '04', title: 'Your goal' },
-  { id: 'done', n: '05', title: "You're set" },
+  { id: 'mastery', n: '05', title: 'The mastery rule' },
+  { id: 'build', n: '06', title: 'Building' },
 ];
 
+const NEW_WORKSPACE_STEPS: { id: StepId; n: string; title: string }[] = [
+  { id: 'subjects', n: '01', title: 'Subjects' },
+  { id: 'level', n: '02', title: 'Level' },
+  { id: 'goal', n: '03', title: 'Goal' },
+  { id: 'build', n: '04', title: 'Building' },
+];
+
+/** Roughly how long the simulated per-subject "mapping" pace runs — the real
+ * call almost never lines up exactly, so the moment it settles we jump
+ * straight to the true result rather than waiting out the clock. */
+const BUILD_STEP_MS = 2400;
+
+function deriveWorkspaceName(subjects: string[]): string {
+  if (subjects.length === 0) return 'My Graph';
+  if (subjects.length <= 2) return subjects.join(' & ');
+  return `${subjects.slice(0, 2).join(', ')} +${subjects.length - 2}`;
+}
+
 /**
- * First-run experience between the marketing site and the graph. No login,
- * no accounts — everything here is local state handed to `onComplete` once,
- * then persisted by the caller (see lib/appView.ts). Every step is
- * skippable: the persistent "Skip setup" control and Escape both drop
- * straight into the graph via `onSkip`.
+ * The backend's `depth` control only picks how MANY concepts get generated
+ * per subject (light 5-7 / standard 8-14 / deep 15-20) — it has no separate
+ * notion of academic level. Mapping study level onto it is the honest way to
+ * make that question have a real effect on the graph: a University student
+ * gets the fullest map, GCSE/IGCSE get just the essentials.
+ */
+function levelToDepth(level: string): WorkspaceDepth | undefined {
+  switch (level) {
+    case 'gcse':
+    case 'igcse':
+      return 'light';
+    case 'a-level':
+    case 'ib':
+    case 'ap':
+    case 'self-study':
+      return 'standard';
+    case 'university':
+      return 'deep';
+    default:
+      return undefined;
+  }
+}
+
+function composeGoal(goal: string, weeks: number | null, date: string): string | undefined {
+  const trimmed = goal.trim();
+  let suffix = '';
+  if (weeks) {
+    suffix = ` (in ${weeks} week${weeks === 1 ? '' : 's'})`;
+  } else if (date) {
+    const parsed = new Date(date);
+    if (!Number.isNaN(parsed.getTime())) {
+      suffix = ` (by ${parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })})`;
+    }
+  }
+  const combined = `${trimmed}${suffix}`.trim();
+  return combined || undefined;
+}
+
+/**
+ * Setup — either the full first-run product tour, or (mode='newWorkspace')
+ * just the subjects/level/goal/build steps for adding another graph via the
+ * WorkspaceTabs "+" control. No login, no accounts — everything here is
+ * local state, persisted to localStorage as a draft on every change so a
+ * refresh mid-flow resumes instead of restarting, and handed to the backend
+ * exactly once at the end to build a REAL graph from what was picked.
  *
  * Layout is a two-column product tour at >=1024px (numbered narrative rail +
  * the step itself) and a single column with a slim numbered header below that.
  * The step column is the ONLY scroll container, so short viewports scroll the
  * content while the header and the Back/Next footer stay put.
  */
-export function Onboarding({ onComplete, onSkip, onBackToSite }: OnboardingProps) {
-  const [stepIndex, setStepIndex] = useState(0);
-  /** Furthest step reached — earlier steps stay clickable in the rail. */
-  const [furthest, setFurthest] = useState(0);
-  const [direction, setDirection] = useState(1);
-  const [name, setName] = useState('');
-  const [subjects, setSubjects] = useState<string[]>(DEFAULT_SUBJECTS);
-  const [otherSubject, setOtherSubject] = useState('');
-  const [goal, setGoal] = useState('');
+export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite }: OnboardingProps) {
+  const steps = mode === 'full' ? FULL_STEPS : NEW_WORKSPACE_STEPS;
 
-  // Always safe: stepIndex is clamped to [0, STEPS.length - 1] everywhere below.
-  const step = STEPS[stepIndex]!;
+  const initialDraft = useMemo(() => {
+    const draft = readDraft();
+    return draft && draft.mode === mode ? draft : null;
+  }, [mode]);
+
+  const [stepIndex, setStepIndex] = useState(() => {
+    const idx = initialDraft?.stepIndex ?? 0;
+    return idx >= 0 && idx < steps.length ? idx : 0;
+  });
+  /** Furthest step reached — earlier steps stay clickable in the rail. */
+  const [furthest, setFurthest] = useState(stepIndex);
+  const [direction, setDirection] = useState(1);
+  const [name, setName] = useState(initialDraft?.name ?? namePrefill ?? '');
+  const [subjects, setSubjects] = useState<string[]>(initialDraft?.subjects ?? []);
+  const [otherSubject, setOtherSubject] = useState(initialDraft?.otherSubject ?? '');
+  const [level, setLevel] = useState(initialDraft?.level ?? '');
+  const [goal, setGoal] = useState(initialDraft?.goal ?? '');
+  const [timeframeWeeks, setTimeframeWeeks] = useState<number | null>(initialDraft?.timeframeWeeks ?? null);
+  const [timeframeDate, setTimeframeDate] = useState(initialDraft?.timeframeDate ?? '');
+
+  const [buildPhase, setBuildPhase] = useState<BuildPhase>('building');
+  const [buildActiveIndex, setBuildActiveIndex] = useState(0);
+  const [buildError, setBuildError] = useState<string | null>(null);
+  const [builtWorkspace, setBuiltWorkspace] = useState<Workspace | null>(null);
+  const buildStartedRef = useRef(false);
+  const buildTimerRef = useRef<number | null>(null);
+
+  // Always safe: stepIndex is clamped to [0, steps.length - 1] everywhere below.
+  const step = steps[stepIndex]!;
   const isFirst = stepIndex === 0;
-  const isLast = stepIndex === STEPS.length - 1;
+  const isLast = stepIndex === steps.length - 1;
+  const onBuildStep = step.id === 'build';
+
+  const allSubjects = useMemo(() => {
+    const other = otherSubject.trim();
+    const combined = other ? [...subjects, other] : [...subjects];
+    return Array.from(new Set(combined)).slice(0, MAX_SUBJECTS);
+  }, [subjects, otherSubject]);
+
+  // Persist a draft continuously — a refresh mid-flow resumes exactly here
+  // instead of losing every answer and restarting the tour from step one.
+  useEffect(() => {
+    if (buildPhase === 'done') return; // finished — completeOnboarding already clears the draft
+    const draft: OnboardingDraft = {
+      mode,
+      stepIndex,
+      name,
+      subjects,
+      otherSubject,
+      level,
+      goal,
+      timeframeWeeks,
+      timeframeDate,
+    };
+    writeDraft(draft);
+  }, [mode, stepIndex, name, subjects, otherSubject, level, goal, timeframeWeeks, timeframeDate, buildPhase]);
 
   const toggleSubject = useCallback((subject: string) => {
-    setSubjects((prev) => (prev.includes(subject) ? prev.filter((s) => s !== subject) : [...prev, subject]));
+    setSubjects((prev) => {
+      if (prev.includes(subject)) return prev.filter((s) => s !== subject);
+      if (prev.length >= MAX_SUBJECTS) return prev;
+      return [...prev, subject];
+    });
   }, []);
 
-  const buildPrefs = useCallback((): OnboardingPrefs => {
-    const allSubjects = [...subjects];
-    const other = otherSubject.trim();
-    if (other) allSubjects.push(other);
-    return {
+  const buildPrefs = useCallback(
+    (): OnboardingPrefs => ({
       name: name.trim() || undefined,
       subjects: allSubjects.length ? allSubjects : undefined,
+      level: level || undefined,
       goal: goal.trim() || undefined,
-    };
-  }, [name, subjects, otherSubject, goal]);
+      timeframe_weeks: timeframeWeeks ?? undefined,
+      timeframe_date: timeframeDate || undefined,
+    }),
+    [name, allSubjects, level, goal, timeframeWeeks, timeframeDate],
+  );
 
-  const finish = useCallback(() => onComplete(buildPrefs()), [onComplete, buildPrefs]);
+  const workspaceName = useMemo(() => deriveWorkspaceName(allSubjects), [allSubjects]);
+
+  // Kicks off the real build the moment the build step is reached. Guarded so
+  // it only ever runs once per mount (re-entering the step after a retry goes
+  // through `runBuild` directly, not this effect).
+  const runBuild = useCallback(() => {
+    setBuildPhase('building');
+    setBuildError(null);
+    setBuildActiveIndex(0);
+
+    if (buildTimerRef.current) window.clearInterval(buildTimerRef.current);
+    const subjectCount = allSubjects.length;
+    if (subjectCount > 1) {
+      buildTimerRef.current = window.setInterval(() => {
+        setBuildActiveIndex((i) => Math.min(i + 1, subjectCount - 1));
+      }, BUILD_STEP_MS);
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const ws = await createWorkspace({
+          name: workspaceName,
+          subjects: allSubjects,
+          goal: composeGoal(goal, timeframeWeeks, timeframeDate),
+          depth: levelToDepth(level),
+        });
+        try {
+          // Required: POST /api/workspaces creates the row but does NOT make
+          // it active (server/src/config.ts#getActiveStudentId is untouched
+          // by creation) — without this, GET /api/graph would keep serving
+          // whatever was active before, and the student would never see the
+          // graph they just built. Treated as non-fatal below purely so a
+          // flaky activate call doesn't strand an otherwise-successful
+          // creation — the workspace still exists and can be activated from
+          // the tab strip.
+          await activateWorkspace(ws.id);
+        } catch (activateErr) {
+          console.warn('[Zynth] activate after create failed — workspace exists but is not yet active:', activateErr);
+        }
+        if (cancelled) return;
+        if (buildTimerRef.current) window.clearInterval(buildTimerRef.current);
+        setBuildActiveIndex(subjectCount);
+        setBuiltWorkspace(ws);
+        setBuildPhase('done');
+      } catch (err) {
+        if (cancelled) return;
+        if (buildTimerRef.current) window.clearInterval(buildTimerRef.current);
+        console.warn('[Zynth] workspace build failed:', err);
+        setBuildError(err instanceof Error ? err.message : 'Something went wrong reaching the server.');
+        setBuildPhase('error');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [allSubjects, workspaceName, goal, timeframeWeeks, timeframeDate, level]);
+
+  useEffect(() => {
+    if (!onBuildStep || buildStartedRef.current) return;
+    buildStartedRef.current = true;
+    const cleanup = runBuild();
+    return cleanup;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onBuildStep]);
+
+  useEffect(
+    () => () => {
+      if (buildTimerRef.current) window.clearInterval(buildTimerRef.current);
+    },
+    [],
+  );
+
+  const finish = useCallback(() => {
+    clearDraft();
+    onComplete(buildPrefs(), builtWorkspace);
+  }, [onComplete, buildPrefs, builtWorkspace]);
 
   const goNext = useCallback(() => {
+    if (onBuildStep) {
+      if (buildPhase === 'done') finish();
+      else if (buildPhase === 'error') runBuild();
+      return; // 'building' — no-op, nothing to advance to yet
+    }
     if (isLast) {
       finish();
       return;
     }
-    const next = Math.min(stepIndex + 1, STEPS.length - 1);
+    const next = Math.min(stepIndex + 1, steps.length - 1);
     setDirection(1);
     setStepIndex(next);
     setFurthest((f) => Math.max(f, next));
-  }, [isLast, finish, stepIndex]);
+  }, [onBuildStep, buildPhase, finish, runBuild, isLast, stepIndex, steps.length]);
 
   const goBack = useCallback(() => {
     if (isFirst) {
@@ -120,6 +317,17 @@ export function Onboarding({ onComplete, onSkip, onBackToSite }: OnboardingProps
     </button>
   );
 
+  const nextLabel = onBuildStep
+    ? buildPhase === 'building'
+      ? 'Building…'
+      : buildPhase === 'error'
+        ? 'Retry'
+        : 'Enter my graph'
+    : isLast
+      ? 'Enter my graph'
+      : 'Continue';
+  const nextDisabled = onBuildStep && buildPhase === 'building';
+
   return (
     <div className="zynth-ob flex h-full w-full items-center justify-center p-3 sm:p-6">
       <div className="ob-shell">
@@ -130,20 +338,21 @@ export function Onboarding({ onComplete, onSkip, onBackToSite }: OnboardingProps
               Zynth
             </span>
             <p className="ob-micro mt-2.5" style={{ maxWidth: 200 }}>
-              Setup takes about a minute. Nothing leaves this device.
+              {mode === 'full' ? 'Setup takes about a minute. Nothing leaves this device.' : 'A new graph, same rules.'}
             </p>
           </div>
 
           <nav className="mt-8 flex flex-1 flex-col gap-0.5" aria-label="Setup steps">
-            {STEPS.map((s, i) => {
-              const reachable = i <= furthest;
-              const state = i === stepIndex ? 'active' : reachable ? 'done' : 'todo';
+            {steps.map((s, i) => {
+              const locked = onBuildStep && buildPhase === 'building';
+              const reachable = i <= furthest && !locked;
+              const state = i === stepIndex ? 'active' : i <= furthest ? 'done' : 'todo';
               return (
                 <button
                   key={s.id}
                   type="button"
                   data-state={state}
-                  disabled={!reachable}
+                  disabled={!reachable || i === stepIndex}
                   aria-current={i === stepIndex ? 'step' : undefined}
                   onClick={() => {
                     if (!reachable || i === stepIndex) return;
@@ -191,17 +400,17 @@ export function Onboarding({ onComplete, onSkip, onBackToSite }: OnboardingProps
               role="progressbar"
               aria-valuenow={stepIndex + 1}
               aria-valuemin={1}
-              aria-valuemax={STEPS.length}
-              aria-label={`Onboarding progress: ${step.title}`}
+              aria-valuemax={steps.length}
+              aria-label={`Setup progress: ${step.title}`}
             >
-              {STEPS.map((s, i) => (
+              {steps.map((s, i) => (
                 <span key={s.id} className="ob-tick" data-on={i <= stepIndex} />
               ))}
             </div>
           </header>
 
           <span className="sr-only" aria-live="polite">
-            {`Step ${stepIndex + 1} of ${STEPS.length}: ${step.title}`}
+            {`Step ${stepIndex + 1} of ${steps.length}: ${step.title}`}
           </span>
 
           <div className="ob-pad min-h-0 flex-1 overflow-y-auto">
@@ -217,29 +426,54 @@ export function Onboarding({ onComplete, onSkip, onBackToSite }: OnboardingProps
               transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
             >
               {step.id === 'welcome' && <WelcomeStep name={name} onNameChange={setName} />}
-              {step.id === 'mastery' && <MasteryRuleStep />}
               {step.id === 'subjects' && (
                 <SubjectsStep
-                  options={SUBJECT_OPTIONS}
+                  groups={SUBJECT_GROUPS}
                   selected={subjects}
                   onToggle={toggleSubject}
                   otherText={otherSubject}
                   onOtherTextChange={setOtherSubject}
                 />
               )}
-              {step.id === 'goal' && <GoalStep goal={goal} onGoalChange={setGoal} />}
-              {step.id === 'done' && <DoneStep name={name.trim()} />}
+              {step.id === 'level' && <LevelStep level={level} onLevelChange={setLevel} />}
+              {step.id === 'goal' && (
+                <GoalStep
+                  goal={goal}
+                  onGoalChange={setGoal}
+                  timeframeWeeks={timeframeWeeks}
+                  onTimeframeWeeksChange={setTimeframeWeeks}
+                  timeframeDate={timeframeDate}
+                  onTimeframeDateChange={setTimeframeDate}
+                />
+              )}
+              {step.id === 'mastery' && <MasteryRuleStep />}
+              {step.id === 'build' && (
+                <BuildStep
+                  mode={mode}
+                  phase={buildPhase}
+                  subjects={allSubjects}
+                  activeIndex={buildActiveIndex}
+                  error={buildError}
+                  workspaceName={workspaceName}
+                  name={name.trim()}
+                />
+              )}
             </motion.div>
           </div>
 
           <footer className="ob-foot flex shrink-0 items-center justify-between gap-3">
-            <button type="button" onClick={goBack} className={`ob-ghost ${FOCUS_RING}`}>
-              {isFirst ? 'Back to site' : 'Back'}
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={onBuildStep && buildPhase === 'building'}
+              className={`ob-ghost ${FOCUS_RING} disabled:opacity-40`}
+            >
+              {isFirst ? (mode === 'full' ? 'Back to site' : 'Cancel') : 'Back'}
             </button>
-            <button type="button" onClick={goNext} className={`ob-cta ${FOCUS_RING}`}>
-              {isLast ? 'Enter my graph' : 'Continue'}
+            <button type="button" onClick={goNext} disabled={nextDisabled} className={`ob-cta ${FOCUS_RING} disabled:opacity-60`}>
+              {nextLabel}
               <span aria-hidden style={{ fontSize: 15, opacity: 0.7 }}>
-                {isLast ? '→' : '↵'}
+                {onBuildStep ? (buildPhase === 'done' ? '→' : buildPhase === 'error' ? '↻' : '') : isLast ? '→' : '↵'}
               </span>
             </button>
           </footer>

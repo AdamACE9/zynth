@@ -1,4 +1,6 @@
 import { motion } from 'motion/react';
+import type { Workspace } from '../lib/api';
+import { WorkspaceTabs } from './WorkspaceTabs';
 
 interface TopBarProps {
   connected: boolean;
@@ -9,6 +11,10 @@ interface TopBarProps {
   onOpenExam: () => void;
   /** Curriculum Time-Machine — the schedule against the syllabus. */
   onOpenTimeMachine: () => void;
+  /** A different workspace was activated — the caller must refetch the graph. */
+  onWorkspaceSwitched: (workspace: Workspace) => void;
+  /** The tab strip's "+" — hands off to the newWorkspace onboarding flow. */
+  onCreateWorkspace: () => void;
 }
 
 const FOCUS_RING =
@@ -47,7 +53,15 @@ function AutopsyIcon() {
  * exists to stay out of its way. A soft top scrim keeps the type legible over
  * bright nebula without introducing a hard bar edge.
  */
-export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam, onOpenTimeMachine }: TopBarProps) {
+export function TopBar({
+  connected,
+  onOpenAutopsy,
+  onOpenPlan,
+  onOpenExam,
+  onOpenTimeMachine,
+  onWorkspaceSwitched,
+  onCreateWorkspace,
+}: TopBarProps) {
   const statusColor = connected ? 'var(--status-green)' : 'var(--text-muted)';
   const statusGlow = connected ? 'var(--status-green-glow)' : 'transparent';
 
@@ -74,7 +88,7 @@ export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam, onOpe
           <span
             className="glass-chip inline-flex shrink-0 items-center gap-1.5 px-2.5 py-1"
             style={{ color: statusColor, fontSize: 9.5, fontWeight: 700, letterSpacing: '0.18em', textTransform: 'uppercase' }}
-            title={connected ? 'Realtime connection live' : 'Realtime connection offline — demo data'}
+            title={connected ? 'Realtime connection live' : 'Realtime connection offline'}
           >
             <span
               aria-hidden
@@ -82,7 +96,7 @@ export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam, onOpe
               style={{ backgroundColor: statusColor, boxShadow: `0 0 8px ${statusGlow}, 0 0 2px ${statusGlow}` }}
             />
             <span className="sr-only">Connection status: </span>
-            {connected ? 'Live' : 'Demo'}
+            {connected ? 'Live' : 'Offline'}
           </span>
         </div>
 
@@ -121,6 +135,12 @@ export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam, onOpe
             Autopsy
           </button>
         </div>
+      </div>
+
+      {/* Workspace tabs — a quiet second row so the graph stays the hero.
+          Renders nothing until at least one workspace loads. */}
+      <div className="relative flex px-4 pb-3 sm:px-6">
+        <WorkspaceTabs onWorkspaceSwitched={onWorkspaceSwitched} onCreateWorkspace={onCreateWorkspace} />
       </div>
     </motion.header>
   );

@@ -47,15 +47,26 @@ export function useLiveGraph(initial: GraphPayloadLike | null): LiveGraph {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [edges, setEdges] = useState<Edge[]>([]);
   const [connected, setConnected] = useState(false);
-  const seededRef = useRef(false);
-
+  /**
+   * Seed from the fetched graph.
+   *
+   * This used to be gated behind a one-shot `seededRef`, which could wedge the
+   * app permanently: if anything set the ref before real data arrived (a
+   * remount racing the fetch, or an empty `graph:snapshot` landing first), the
+   * 21 fetched nodes were silently discarded and the UI sat on "Building your
+   * knowledge graph…" forever with a perfectly healthy API behind it.
+   *
+   * Seeding is now idempotent and self-healing: whenever `initial` carries
+   * nodes and we're still showing none, adopt them. Live socket events (which
+   * replace individual nodes) are unaffected, because once `nodes` is non-empty
+   * this no longer fires.
+   */
   useEffect(() => {
-    if (initial && !seededRef.current) {
+    if (initial && initial.nodes.length > 0 && nodes.length === 0) {
       setNodes(initial.nodes);
       setEdges(initial.edges);
-      seededRef.current = true;
     }
-  }, [initial]);
+  }, [initial, nodes.length]);
 
   useEffect(() => {
     const s = getSocket();
@@ -82,9 +93,12 @@ export function useLiveGraph(initial: GraphPayloadLike | null): LiveGraph {
     };
 
     const handleSnapshot: ServerToClientEvents['graph:snapshot'] = (payload) => {
+      // The server sends a snapshot on every connect. Never let an empty one
+      // wipe a graph we already have — an early/stale snapshot blanking real
+      // nodes is exactly how the app used to wedge on its loading state.
+      if (payload.nodes.length === 0) return;
       setNodes(payload.nodes);
       setEdges(payload.edges);
-      seededRef.current = true;
     };
 
     s.on('connect', handleConnect);

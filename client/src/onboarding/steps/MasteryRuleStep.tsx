@@ -57,6 +57,9 @@ export function MasteryRuleStep() {
           A node&apos;s colour is <em style={{ color: 'var(--text-primary)', fontStyle: 'normal', fontWeight: 600 }}>evidence</em>,
           never exposure. Drive this one yourself.
         </p>
+        <p className="ob-body mt-3" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+          Your graph starts entirely red. Nothing is green until you prove it.
+        </p>
       </header>
 
       <div className="grid items-center gap-7 sm:grid-cols-[176px_1fr]">

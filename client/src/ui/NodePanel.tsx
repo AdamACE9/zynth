@@ -131,10 +131,10 @@ function Fact({ label, value, color, rule = true }: { label: string; value: stri
  *
  * War Room / Explain / Quiz open the matching full-screen overlay via
  * `onOpenScreen` (wired in App.tsx to the component under
- * client/src/screens/). "Engage (demo)" is real: it POSTs
+ * client/src/screens/). "Mark as engaged" is real: it POSTs
  * /api/nodes/:id/engage and, if that fails because the backend isn't running,
  * falls back to an obvious local optimistic flip so the red->amber transition
- * is always demoable.
+ * still works offline.
  */
 export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen }: NodePanelProps) {
   const [toast, setToast] = useState<string | null>(null);
@@ -165,9 +165,9 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
       replaceNode(updated);
       setToast('Engaged — status live from server.');
     } catch (err) {
-      console.warn('[Zynth] engage endpoint unreachable, applying local demo flip:', err);
+      console.warn('[Zynth] engage endpoint unreachable, applying local optimistic flip:', err);
       patchNode(node.id, { status: 'amber', engaged_at: new Date().toISOString() });
-      setToast('Demo mode — engaged locally (backend offline).');
+      setToast('Engaged locally — backend offline.');
     } finally {
       setEngaging(false);
     }
@@ -347,21 +347,23 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
           </div>
         </section>
 
-        {/* ---- Demo shortcut ---------------------------------------------- */}
-        <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--border-glass)' }}>
-          <button
-            type="button"
-            onClick={handleEngage}
-            disabled={engaging}
-            className={`btn-chip w-full rounded-[var(--radius-sm)] py-2 disabled:opacity-50 ${FOCUS_RING}`}
-            style={{ fontSize: 12, fontWeight: 600 }}
-          >
-            {engaging ? 'Engaging…' : 'Engage (demo)'}
-          </button>
-          <p className="mt-1.5 text-center" style={{ color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.45 }}>
-            Demo shortcut — flips status without a full session.
-          </p>
-        </div>
+        {/* ---- Quick engage shortcut --------------------------------------- */}
+        {node.status === 'red' && (
+          <div className="mt-5 pt-4" style={{ borderTop: '1px solid var(--border-glass)' }}>
+            <button
+              type="button"
+              onClick={handleEngage}
+              disabled={engaging}
+              className={`btn-chip w-full rounded-[var(--radius-sm)] py-2 disabled:opacity-50 ${FOCUS_RING}`}
+              style={{ fontSize: 12, fontWeight: 600 }}
+            >
+              {engaging ? 'Engaging…' : 'Mark as engaged'}
+            </button>
+            <p className="mt-1.5 text-center" style={{ color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.45 }}>
+              Shortcut for red → amber without a full War Room or Explain session.
+            </p>
+          </div>
+        )}
 
         <AnimatePresence>
           {toast && (

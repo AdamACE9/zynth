@@ -20,6 +20,147 @@ export interface GraphPayload {
 }
 
 /**
+ * A student's saved graph. Confirmed against server/src/routes/workspaces.ts:
+ * POST creates one from real subjects via Gemini (every node red, one call
+ * per subject); GET /api/graph always serves whichever workspace is
+ * currently active (server/src/config.ts#getActiveStudentId). `is_active` is
+ * computed server-side on every response that returns a Workspace; `active`
+ * is kept as a defensive fallback key in case that ever changes.
+ */
+export interface Workspace {
+  id: string;
+  name: string;
+  subjects: string[];
+  goal?: string | null;
+  is_active?: boolean;
+  active?: boolean;
+  created_at?: string;
+  last_opened_at?: string | null;
+}
+
+/** How many concepts Gemini generates per subject: light 5-7, standard 8-14, deep 15-20. */
+export type WorkspaceDepth = 'light' | 'standard' | 'deep';
+
+export function isActiveWorkspace(ws: Workspace): boolean {
+  return Boolean(ws.is_active ?? ws.active);
+}
+
+/** Unwraps either `{ workspace: {...} }` or a bare workspace object. */
+function unwrapWorkspace(data: unknown): Workspace | null {
+  const ws = (data as { workspace?: Workspace } | Workspace | null)?.hasOwnProperty?.('workspace')
+    ? (data as { workspace?: Workspace }).workspace
+    : (data as Workspace | null);
+  return ws && typeof ws === 'object' && typeof ws.id === 'string' ? ws : null;
+}
+
+/**
+ * Lists all saved workspaces, newest first (per contract). Throws on failure
+ * — callers use this as the source of truth for "does this student have a
+ * real graph yet", so a silent empty-array fallback would be actively wrong.
+ */
+export async function listWorkspaces(): Promise<Workspace[]> {
+  const res = await fetch(apiUrl('/api/workspaces'));
+  if (!res.ok) {
+    throw new Error(`GET /api/workspaces responded ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  const list = Array.isArray(data) ? data : (data as { workspaces?: unknown })?.workspaces;
+  if (!Array.isArray(list)) {
+    throw new Error('Malformed /api/workspaces response body');
+  }
+  return list as Workspace[];
+}
+
+/** The currently-active workspace, or null if none is active yet. */
+export async function getActiveWorkspace(): Promise<Workspace | null> {
+  const res = await fetch(apiUrl('/api/workspaces/active'));
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(`GET /api/workspaces/active responded ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  return unwrapWorkspace(data);
+}
+
+export interface CreateWorkspacePayload {
+  name: string;
+  subjects: string[];
+  goal?: string;
+  /** How many concepts to generate per subject — see onboarding/Onboarding.tsx#levelToDepth
+   * for how the student's chosen study level maps onto this. */
+  depth?: WorkspaceDepth;
+}
+
+/**
+ * Creates a brand-new workspace: the backend runs a Gemini call per subject
+ * to generate a real graph (every node red) and returns it. This can take a
+ * while — callers should show real progress, not a frozen spinner (see
+ * onboarding/steps/BuildStep.tsx).
+ */
+export async function createWorkspace(payload: CreateWorkspacePayload): Promise<Workspace> {
+  const res = await fetch(apiUrl('/api/workspaces'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = await res.text();
+    } catch {
+      /* body already consumed or unreadable — the status code alone is still useful */
+    }
+    throw new Error(`POST /api/workspaces responded ${res.status}${detail ? `: ${detail}` : ''}`);
+  }
+  const data: unknown = await res.json();
+  const ws = unwrapWorkspace(data);
+  if (!ws) {
+    throw new Error('Malformed /api/workspaces response body');
+  }
+  return ws;
+}
+
+/** Makes one workspace active — subsequent GET /api/graph calls serve its graph. */
+export async function activateWorkspace(id: string): Promise<Workspace> {
+  const res = await fetch(apiUrl(`/api/workspaces/${encodeURIComponent(id)}/activate`), { method: 'POST' });
+  if (!res.ok) {
+    throw new Error(`POST /api/workspaces/${id}/activate responded ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  const ws = unwrapWorkspace(data);
+  if (!ws) {
+    throw new Error('Malformed activate response body');
+  }
+  return ws;
+}
+
+/** Destroys a workspace and everything in it. Irreversible — callers must confirm first. */
+export async function deleteWorkspace(id: string): Promise<void> {
+  const res = await fetch(apiUrl(`/api/workspaces/${encodeURIComponent(id)}`), { method: 'DELETE' });
+  if (!res.ok) {
+    throw new Error(`DELETE /api/workspaces/${id} responded ${res.status}`);
+  }
+}
+
+/** Renames a workspace via PATCH /api/workspaces/:id { name }. */
+export async function renameWorkspace(id: string, name: string): Promise<Workspace> {
+  const res = await fetch(apiUrl(`/api/workspaces/${encodeURIComponent(id)}`), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!res.ok) {
+    throw new Error(`PATCH /api/workspaces/${id} responded ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  const ws = unwrapWorkspace(data);
+  if (!ws) {
+    throw new Error('Malformed rename response body');
+  }
+  return ws;
+}
+
+/**
  * Fetches the live graph from the backend. This function ALWAYS resolves —
  * on any network error, non-2xx status, or malformed body, it logs a console
  * warning and falls back to the local mock graph so the 3D scene never has
