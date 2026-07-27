@@ -7,6 +7,8 @@ interface TopBarProps {
   onOpenPlan: () => void;
   /** Exam Simulator — a timed paper that reports back to specific nodes. */
   onOpenExam: () => void;
+  /** Curriculum Time-Machine — the schedule against the syllabus. */
+  onOpenTimeMachine: () => void;
 }
 
 const FOCUS_RING =
@@ -45,7 +47,7 @@ function AutopsyIcon() {
  * exists to stay out of its way. A soft top scrim keeps the type legible over
  * bright nebula without introducing a hard bar edge.
  */
-export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam }: TopBarProps) {
+export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam, onOpenTimeMachine }: TopBarProps) {
   const statusColor = connected ? 'var(--status-green)' : 'var(--text-muted)';
   const statusGlow = connected ? 'var(--status-green-glow)' : 'transparent';
 
@@ -92,6 +94,14 @@ export function TopBar({ connected, onOpenAutopsy, onOpenPlan, onOpenExam }: Top
             style={{ fontSize: 12.5, fontWeight: 600 }}
           >
             Plan
+          </button>
+          <button
+            type="button"
+            onClick={onOpenTimeMachine}
+            className={`glass-chip btn-chip pointer-events-auto hidden shrink-0 items-center gap-2 px-3 py-2 lg:flex sm:px-3.5 ${FOCUS_RING}`}
+            style={{ fontSize: 12.5, fontWeight: 600 }}
+          >
+            Timeline
           </button>
           <button
             type="button"

@@ -14,6 +14,7 @@ import { Explain } from './screens/Explain';
 import { Autopsy } from './screens/Autopsy';
 import { StudyPlan } from './screens/StudyPlan';
 import { ExamSim } from './screens/ExamSim';
+import { TimeMachine } from './screens/TimeMachine';
 import { Landing } from './site/Landing';
 import { Onboarding } from './onboarding/Onboarding';
 
@@ -24,7 +25,7 @@ interface GraphPayload {
 
 /** Which full-screen overlay (if any) is mounted on top of the ever-present graph. */
 type ActiveScreen = {
-  type: 'warroom' | 'quiz' | 'explain' | 'autopsy' | 'plan' | 'exam';
+  type: 'warroom' | 'quiz' | 'explain' | 'autopsy' | 'plan' | 'exam' | 'timemachine';
   nodeId: string | null;
 };
 
@@ -157,6 +158,7 @@ function GraphApp() {
         onOpenAutopsy={() => openScreen('autopsy', null)}
         onOpenPlan={() => openScreen('plan', null)}
         onOpenExam={() => openScreen('exam', null)}
+        onOpenTimeMachine={() => openScreen('timemachine', null)}
       />
       <Legend />
 
@@ -263,6 +265,7 @@ function GraphApp() {
         {activeScreen?.type === 'autopsy' && <Autopsy key="autopsy" onClose={closeScreen} />}
         {activeScreen?.type === 'plan' && <StudyPlan key="plan" onClose={closeScreen} />}
         {activeScreen?.type === 'exam' && <ExamSim key="exam" onClose={closeScreen} />}
+        {activeScreen?.type === 'timemachine' && <TimeMachine key="timemachine" onClose={closeScreen} />}
       </AnimatePresence>
     </div>
   );
