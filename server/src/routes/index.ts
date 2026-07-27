@@ -9,6 +9,10 @@ import { autopsyRouter } from './autopsy';
 import { copilotRouter } from './copilot';
 import { planRouter } from './plan';
 import { examRouter } from './exam';
+import { timemachineRouter } from './timemachine';
+import { flashcardsRouter } from './flashcards';
+import { debateRouter } from './debate';
+import { officehoursRouter } from './officehours';
 
 export const apiRouter = Router();
 
@@ -22,3 +26,7 @@ apiRouter.use(autopsyRouter);
 apiRouter.use(copilotRouter);
 apiRouter.use(planRouter);
 apiRouter.use(examRouter);
+apiRouter.use(timemachineRouter);
+apiRouter.use(flashcardsRouter);
+apiRouter.use(debateRouter);
+apiRouter.use(officehoursRouter);
