@@ -10,11 +10,18 @@ export interface LandingProps {
   onStartTour: () => void;
 }
 
-const HUE: Record<SpotStatus, string> = { red: 'var(--red)', amber: 'var(--amb)', green: 'var(--grn)' };
+const HUE: Record<SpotStatus, string> = {
+  red: 'var(--status-red)',
+  amber: 'var(--status-amber)',
+  green: 'var(--status-green)',
+};
+
+const FOCUS_RING =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-cyan)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-void)]';
 
 /* ── atoms ─────────────────────────────────────────────────────────────── */
 
-/** A wipe, deliberately not the stock fade-up. Reads like ink being laid down. */
+/** A wipe, deliberately not the stock fade-up. Reads like a line being drawn. */
 function Ink({ children, delay = 0, className }: { children: ReactNode; delay?: number; className?: string }) {
   return (
     <motion.div
@@ -30,18 +37,31 @@ function Ink({ children, delay = 0, className }: { children: ReactNode; delay?: 
 }
 
 function Dot({ hue, size = 9 }: { hue: string; size?: number }) {
-  return <span className="dot" style={{ width: size, height: size, background: hue }} />;
+  return <span className="dot" style={{ width: size, height: size, background: hue, boxShadow: `0 0 10px ${hue}` }} />;
 }
 
-/** Exhibit header: marginal numeral + rule, like a case file section. */
+/** The app's own three-node constellation mark (see ui/TopBar.tsx) — reused
+ * verbatim so the site's wordmark is pixel-identical to the app's. */
+function ZynthMark({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
+      <path d="M5.6 7.4 12 4.2l6.4 3.2M5.6 7.4v9.2L12 19.8l6.4-3.2V7.4" stroke="var(--accent-violet)" strokeOpacity="0.5" strokeWidth="1" />
+      <circle cx="12" cy="4.2" r="2.1" fill="var(--accent-cyan)" />
+      <circle cx="5.6" cy="16.6" r="1.7" fill="var(--accent-violet)" />
+      <circle cx="18.4" cy="16.6" r="1.7" fill="var(--accent-violet)" fillOpacity="0.65" />
+    </svg>
+  );
+}
+
+/** Exhibit header: marginal accent-cyan numeral + rule, like a case file section. */
 function Exhibit({ n, tag, title, lede }: { n: string; tag: string; title: ReactNode; lede?: ReactNode }) {
   return (
     <div className="exhibit">
-      <div className="t-tag pt-2">{n}</div>
+      <div className="t-num pt-2">{n}</div>
       <div>
         <Ink>
           <div className="t-tag">{tag}</div>
-          <h2 className="serif t-sect mt-5" style={{ maxWidth: '17ch' }}>
+          <h2 className="t-sect mt-5" style={{ maxWidth: '17ch' }}>
             {title}
           </h2>
           {lede && (
@@ -80,11 +100,14 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
       {/* ── masthead ─────────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-40"
-        style={{ background: 'rgba(242,239,231,0.86)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--rule)' }}
+        style={{ background: 'rgba(4,5,10,0.72)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', borderBottom: '1px solid var(--border-glass)' }}
       >
         <div className="sheet flex items-center justify-between" style={{ height: 62 }}>
-          <a href="#top" className="serif" style={{ fontSize: 25, letterSpacing: '-0.02em' }}>
-            Zynth
+          <a href="#top" className="flex items-center gap-2.5">
+            <ZynthMark />
+            <span className="text-wordmark" style={{ fontSize: 21 }}>
+              Zynth
+            </span>
           </a>
           <nav className="hidden items-center gap-8 md:flex">
             {[
@@ -93,12 +116,12 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               ['03 Autopsy', '#e03'],
               ['05 Questions', '#e05'],
             ].map(([l, h]) => (
-              <a key={h} href={h} className="t-tag" style={{ letterSpacing: '0.1em' }}>
+              <a key={h} href={h} className={`t-tag ${FOCUS_RING}`} style={{ letterSpacing: '0.14em' }}>
                 {l}
               </a>
             ))}
           </nav>
-          <button onClick={onEnter} className="btn btn-ink" style={{ padding: '9px 16px' }}>
+          <button onClick={onEnter} className={`cta ${FOCUS_RING}`} style={{ padding: '9px 16px' }}>
             Go to Zynth
           </button>
         </div>
@@ -114,14 +137,14 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               </Ink>
 
               <motion.h1
-                className="serif t-hero mt-7"
-                style={{ maxWidth: '12ch' }}
+                className="t-hero mt-7"
+                style={{ maxWidth: '13ch' }}
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
               >
                 The truth about what you{' '}
-                <em style={{ fontStyle: 'italic' }}>actually</em> know.
+                <span style={{ color: 'var(--accent-cyan)' }}>actually</span> know.
               </motion.h1>
 
               <motion.p
@@ -141,10 +164,10 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.7, delay: 0.25 }}
               >
-                <button onClick={onEnter} className="btn btn-ink" style={{ padding: '15px 26px' }}>
+                <button onClick={onEnter} className={`cta ${FOCUS_RING}`} style={{ padding: '15px 26px' }}>
                   Go to Zynth
                 </button>
-                <button onClick={onStartTour} className="btn btn-out" style={{ padding: '15px 22px' }}>
+                <button onClick={onStartTour} className={`cta-ghost ${FOCUS_RING}`} style={{ padding: '15px 22px' }}>
                   Take the tour
                 </button>
               </motion.div>
@@ -154,23 +177,25 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               </Ink>
             </div>
 
-            {/* the drawing */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 1.1, delay: 0.15 }}
-            >
-              <div className="plate">
+            {/* the live graph */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 1.1, delay: 0.15 }}>
+              <div className="plate glass-panel">
                 <Hero3D spotlight={beat.s} />
               </div>
               {/* figure caption — the live verdict on the highlighted node */}
               <div className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
                 <div className="flex items-center gap-2.5">
                   <Dot hue={HUE[beat.s]} />
-                  <span className="mono" style={{ fontSize: 13 }}>
+                  <span className="mono" style={{ fontSize: 13, color: 'var(--text-primary)' }}>
                     Chain Rule
                   </span>
-                  <motion.span key={beat.s} className="t-tag" initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ letterSpacing: '0.08em' }}>
+                  <motion.span
+                    key={beat.s}
+                    className="t-tag"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    style={{ letterSpacing: '0.1em' }}
+                  >
                     {beat.verdict}
                   </motion.span>
                 </div>
@@ -181,7 +206,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
         </section>
 
         {/* ── evidence bar ───────────────────────────────────────────── */}
-        <section style={{ borderTop: '1px solid var(--rule)', borderBottom: '1px solid var(--rule)' }}>
+        <section style={{ borderTop: '1px solid var(--border-glass)', borderBottom: '1px solid var(--border-glass)' }}>
           <div className="sheet grid grid-cols-2 md:grid-cols-4">
             {[
               ['05', 'minds per debate'],
@@ -192,7 +217,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               <Ink key={l} delay={idx * 0.05}>
                 <div
                   className="py-10"
-                  style={{ borderLeft: idx === 0 ? 'none' : '1px solid var(--rule)', paddingLeft: idx === 0 ? 0 : 26 }}
+                  style={{ borderLeft: idx === 0 ? 'none' : '1px solid var(--border-glass)', paddingLeft: idx === 0 ? 0 : 26 }}
                 >
                   <div className="t-fig">{n}</div>
                   <div className="t-tag mt-3">{l}</div>
@@ -210,7 +235,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               tag="The standard of proof"
               title={
                 <>
-                  Green is a <em style={{ fontStyle: 'italic' }}>verdict</em>, not a mood.
+                  Green is a <span style={{ color: 'var(--accent-cyan)' }}>verdict</span>, not a mood.
                 </>
               }
               lede="Most study apps mark a topic done the moment you look at it. Zynth treats that as hearsay. A concept has exactly three states, and only one of them means you can actually do it."
@@ -225,15 +250,15 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 <Ink key={r.s} delay={idx * 0.07}>
                   <div
                     className="grid items-start gap-4 py-8 md:grid-cols-[130px_minmax(0,1fr)_minmax(0,1.5fr)] md:gap-10"
-                    style={{ borderTop: '1px solid var(--rule)' }}
+                    style={{ borderTop: '1px solid var(--border-glass)' }}
                   >
                     <div className="flex items-center gap-3">
                       <Dot hue={HUE[r.s]} size={11} />
-                      <span className="t-tag" style={{ color: HUE[r.s], letterSpacing: '0.14em' }}>
+                      <span className="t-tag" style={{ color: HUE[r.s], letterSpacing: '0.16em' }}>
                         {r.k}
                       </span>
                     </div>
-                    <h3 className="serif t-sub">{r.h}</h3>
+                    <h3 className="t-sub">{r.h}</h3>
                     <p className="t-body">{r.b}</p>
                   </div>
                 </Ink>
@@ -242,7 +267,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
             </div>
 
             <Ink delay={0.1}>
-              <p className="mono mt-8" style={{ fontSize: 13, color: 'var(--ink-70)' }}>
+              <p className="mono mt-8" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                 Enforced by a database trigger, not by the interface — an illegal transition is rejected at the data
                 layer even if something upstream asks for it.
               </p>
@@ -260,10 +285,10 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               lede="Open a weak node and five AI personas argue it out in front of you — an analogy, a rigorous definition, a real-world use, and a skeptic trying to break all three. They answer each other, not you."
             />
             <Ink delay={0.1}>
-              <div className="file mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
-                <div className="flex flex-wrap items-baseline justify-between gap-3 pb-6" style={{ borderBottom: '1px solid var(--rule)' }}>
+              <div className="glass-panel mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
+                <div className="flex flex-wrap items-baseline justify-between gap-3 pb-6" style={{ borderBottom: '1px solid var(--border-glass)' }}>
                   <span className="t-tag">Transcript — Calculus / Chain Rule</span>
-                  <span className="t-tag" style={{ color: 'var(--amb)' }}>
+                  <span className="t-tag" style={{ color: 'var(--status-amber)' }}>
                     Verdict: engaged
                   </span>
                 </div>
@@ -286,7 +311,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                       <div className="t-tag" style={{ paddingTop: 3 }}>
                         {String(idx + 1).padStart(2, '0')} {who}
                       </div>
-                      <p style={{ fontSize: '1.0625rem', lineHeight: 1.5 }}>{line}</p>
+                      <p style={{ fontSize: '1.0625rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>{line}</p>
                     </motion.div>
                   ))}
                 </div>
@@ -303,35 +328,35 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               tag="The Autopsy Board"
               title={
                 <>
-                  The mistake <em style={{ fontStyle: 'italic' }}>behind</em> your mistakes.
+                  The mistake <span style={{ color: 'var(--accent-cyan)' }}>behind</span> your mistakes.
                 </>
               }
               lede="Paste the wrong answers from a past paper. Zynth reads across all of them at once, names the single misconception underneath, and then rewires your graph — drawing edges between the concepts that keep failing together."
             />
             <Ink delay={0.1}>
-              <div className="file mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
+              <div className="glass-panel mt-14" style={{ padding: 'clamp(22px,3vw,38px)' }}>
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <span className="t-tag">Finding 01 — confidence 0.95</span>
                   <span className="t-tag">07 mistakes · 03 concepts</span>
                 </div>
-                <h3 className="serif mt-5" style={{ fontSize: 'clamp(1.6rem,3vw,2.4rem)', lineHeight: 1.1 }}>
+                <h3 className="display mt-5" style={{ fontSize: 'clamp(1.6rem,3vw,2.4rem)', lineHeight: 1.1 }}>
                   You drop the negative when the inner function is decreasing.
                 </h3>
                 <p className="t-body mt-5" style={{ maxWidth: '58ch' }}>
                   Seven separate wrong answers across three topics, one cause. Not carelessness — a rule you learned
                   with the sign attached to the wrong term.
                 </p>
-                <div className="mt-8 grid gap-px" style={{ background: 'var(--rule)' }}>
+                <div className="mt-8 grid gap-px" style={{ background: 'var(--border-glass)' }}>
                   {[
                     ['Chain Rule', 'Implicit Differentiation'],
                     ['Implicit Differentiation', 'Related Rates'],
                     ['Chain Rule', 'Related Rates'],
                   ].map(([a, b]) => (
-                    <div key={`${a}${b}`} className="flex flex-wrap items-center gap-3 bg-transparent py-4" style={{ background: 'var(--pap)' }}>
+                    <div key={`${a}${b}`} className="flex flex-wrap items-center gap-3 py-4" style={{ background: 'var(--surface-glass-strong)' }}>
                       <span className="t-tag">edge drawn</span>
-                      <span style={{ fontSize: '1.0625rem' }}>{a}</span>
-                      <span style={{ color: 'var(--amb)' }}>↔</span>
-                      <span style={{ fontSize: '1.0625rem' }}>{b}</span>
+                      <span style={{ fontSize: '1.0625rem', color: 'var(--text-primary)' }}>{a}</span>
+                      <span style={{ color: 'var(--status-amber)' }}>↔</span>
+                      <span style={{ fontSize: '1.0625rem', color: 'var(--text-primary)' }}>{b}</span>
                     </div>
                   ))}
                 </div>
@@ -356,10 +381,10 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 <Ink key={t as string} delay={idx * 0.05}>
                   <div
                     className="grid gap-3 py-7 md:grid-cols-[48px_minmax(0,1fr)_minmax(0,1.6fr)] md:gap-10"
-                    style={{ borderTop: '1px solid var(--rule)', opacity: soon ? 0.62 : 1 }}
+                    style={{ borderTop: '1px solid var(--border-glass)', opacity: soon ? 0.62 : 1 }}
                   >
                     <span className="t-tag pt-1">{String(idx + 1).padStart(2, '0')}</span>
-                    <h3 className="serif t-sub">{t as string}</h3>
+                    <h3 className="t-sub">{t as string}</h3>
                     <div>
                       <p className="t-body">{b as string}</p>
                       {soon ? <span className="t-tag mt-2 inline-block">In progress</span> : null}
@@ -376,8 +401,8 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
         <section id="e05" className="band">
           <div className="sheet grid gap-12 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-20">
             <div>
-              <div className="t-tag">05</div>
-              <h2 className="serif t-sect mt-5">Questions.</h2>
+              <div className="t-num">05</div>
+              <h2 className="t-sect mt-5">Questions.</h2>
             </div>
             <div>
               {[
@@ -390,11 +415,11 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 const open = openQ === idx;
                 return (
                   <div key={q}>
-                    <button className="q" onClick={() => setOpenQ(open ? null : idx)} aria-expanded={open}>
-                      <span className="serif" style={{ fontSize: 'clamp(1.2rem,2vw,1.5rem)', lineHeight: 1.2 }}>
+                    <button className={`q ${FOCUS_RING}`} onClick={() => setOpenQ(open ? null : idx)} aria-expanded={open}>
+                      <span className="display" style={{ fontSize: 'clamp(1.15rem,2vw,1.4rem)', lineHeight: 1.2 }}>
                         {q}
                       </span>
-                      <span className="t-tag" style={{ paddingTop: 6 }}>
+                      <span className="t-tag" style={{ paddingTop: 6, color: open ? 'var(--accent-cyan)' : 'var(--text-muted)' }}>
                         {open ? '−' : '+'}
                       </span>
                     </button>
@@ -420,14 +445,14 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
         <section className="band">
           <div className="sheet text-center">
             <Ink>
-              <h2 className="serif t-sect" style={{ maxWidth: '16ch', marginInline: 'auto' }}>
+              <h2 className="t-sect" style={{ maxWidth: '16ch', marginInline: 'auto' }}>
                 Stop guessing what you know.
               </h2>
               <div className="mt-10 flex flex-wrap justify-center gap-3">
-                <button onClick={onEnter} className="btn btn-ink" style={{ padding: '16px 30px' }}>
+                <button onClick={onEnter} className={`cta ${FOCUS_RING}`} style={{ padding: '16px 30px' }}>
                   Go to Zynth
                 </button>
-                <button onClick={onStartTour} className="btn btn-out" style={{ padding: '16px 24px' }}>
+                <button onClick={onStartTour} className={`cta-ghost ${FOCUS_RING}`} style={{ padding: '16px 24px' }}>
                   Take the tour
                 </button>
               </div>
@@ -437,21 +462,24 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
         </section>
       </main>
 
-      <footer style={{ borderTop: '1px solid var(--rule)' }}>
+      <footer style={{ borderTop: '1px solid var(--border-glass)' }}>
         <div className="sheet flex flex-col gap-5 py-10 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="serif" style={{ fontSize: 22 }}>
-              Zynth
+            <div className="flex items-center gap-2">
+              <ZynthMark size={18} />
+              <span className="text-wordmark" style={{ fontSize: 19 }}>
+                Zynth
+              </span>
             </div>
-            <p className="t-body mt-2" style={{ maxWidth: '44ch' }}>
+            <p className="t-body mt-3" style={{ maxWidth: '44ch' }}>
               A Student Learning OS built on one living knowledge graph. Gemini for the agents, Groq for grading.
             </p>
           </div>
           <div className="flex items-center gap-6">
-            <a href="https://github.com/AdamACE9/zynth" target="_blank" rel="noreferrer noopener" className="t-tag">
+            <a href="https://github.com/AdamACE9/zynth" target="_blank" rel="noreferrer noopener" className={`t-tag ${FOCUS_RING}`}>
               GitHub ↗
             </a>
-            <button onClick={onEnter} className="t-tag">
+            <button onClick={onEnter} className={`t-tag ${FOCUS_RING}`}>
               Go to Zynth
             </button>
           </div>

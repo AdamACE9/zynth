@@ -1,22 +1,24 @@
 import { Suspense, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Billboard, Line } from '@react-three/drei';
+import { Bloom, EffectComposer } from '@react-three/postprocessing';
 import * as THREE from 'three';
 
 /**
- * The hero drawing: a real 3D knowledge graph rendered as a TECHNICAL
- * DRAWING — ink hairlines and precise nodes on paper, not glowing bloom orbs
- * on a nebula. No postprocessing, no emissive haze; the only colour in the
- * whole plate is the red/amber/green of the evidence itself.
+ * The hero drawing: a real 3D knowledge graph rendered with the SAME
+ * technique as the app's own KnowledgeGraph — glowing emissive spheres, a
+ * canvas-generated radial halo behind each one (additive blend), cyan/violet
+ * structural edges, and a bloom pass. This used to be a light "technical
+ * drawing" (ink lines on paper); it is now visually the same object the
+ * product shows after "Go to Zynth", just smaller and non-interactive.
  *
- * One node is driven red → amber → green by the parent, so the product's core
- * rule plays out inside the drawing.
+ * One node is driven red -> amber -> green by the parent, so the product's
+ * core rule plays out inside the drawing itself.
  */
 
 export type SpotStatus = 'red' | 'amber' | 'green';
 
-const INK = '#16150F';
-const COLOR: Record<SpotStatus, string> = { red: '#D21F43', amber: '#B87206', green: '#0B8F63' };
+const COLOR: Record<SpotStatus, string> = { red: '#ff3b5c', amber: '#ffb020', green: '#28e0a0' };
 
 interface HNode {
   id: string;
@@ -57,22 +59,58 @@ const LINKS: [string, string, 'pre' | 'rel' | 'corr'][] = [
   ['chain', 'related', 'corr'],
 ];
 
+/** Same edge palette as the real graph (client/src/graph/Edges.tsx): cyan for
+ * structural prerequisites, dim violet for loose relations, amber-dashed for
+ * a correlated error — never red/amber/green, so edges never compete with
+ * node status. */
+const LINK_STYLE: Record<'pre' | 'rel' | 'corr', { color: string; opacity: number; width: number; dashed?: boolean }> = {
+  pre: { color: '#7becff', opacity: 0.6, width: 1.6 },
+  rel: { color: '#9b7bff', opacity: 0.24, width: 1 },
+  corr: { color: '#f5a524', opacity: 0.65, width: 1.3, dashed: true },
+};
+
 function seedOf(id: string) {
   let h = 0;
   for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997;
   return (h / 997) * Math.PI * 2;
 }
 
-/** A node: a filled disc with a thin ink ring — a plotted point, not a light source. */
+/** Runtime-generated radial white->transparent gradient, additive-blended
+ * behind every node — identical recipe to NodeMesh.tsx's shared halo
+ * texture, so the hero's nodes read as the same glowing orbs as the app's. */
+let sharedHalo: THREE.Texture | null = null;
+function getHaloTexture(): THREE.Texture {
+  if (sharedHalo) return sharedHalo;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.35, 'rgba(255,255,255,0.5)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  sharedHalo = texture;
+  return texture;
+}
+
+/** A single glowing node: additive halo billboard + emissive sphere, both
+ * lerping colour toward the current status/spotlight over ~0.6s. */
 function Point({ node, spotlight }: { node: HNode; spotlight: SpotStatus }) {
   const g = useRef<THREE.Group>(null);
-  const inner = useRef<THREE.MeshBasicMaterial>(null);
+  const core = useRef<THREE.MeshStandardMaterial>(null);
+  const halo = useRef<THREE.MeshBasicMaterial>(null);
   const isSpot = node.status === 'spot';
   const target = useMemo(
     () => new THREE.Color(isSpot ? COLOR[spotlight] : COLOR[node.status as SpotStatus]),
     [isSpot, spotlight, node.status],
   );
   const seed = useMemo(() => seedOf(node.id), [node.id]);
+  const haloTexture = useMemo(() => getHaloTexture(), []);
 
   useFrame((state, delta) => {
     const t = state.clock.elapsedTime;
@@ -83,25 +121,49 @@ function Point({ node, spotlight }: { node: HNode; spotlight: SpotStatus }) {
         node.p[2],
       );
     }
-    if (inner.current) inner.current.color.lerp(target, Math.min(1, delta / 0.5));
+    const lerpAmt = Math.min(1, delta / 0.6);
+    if (core.current) {
+      core.current.color.lerp(target, lerpAmt);
+      core.current.emissive.lerp(target, lerpAmt);
+      const pulse = isSpot ? 1 + Math.sin(t * 1.6 + seed) * 0.35 : 1;
+      core.current.emissiveIntensity = (isSpot ? 2.6 : 1.9) * pulse;
+    }
+    if (halo.current) {
+      halo.current.color.lerp(target, lerpAmt);
+      const opacityPulse = 0.3 + Math.sin(t * 1.4 + seed) * 0.06;
+      halo.current.opacity = isSpot ? Math.min(0.55, opacityPulse * 1.4) : opacityPulse;
+    }
   });
-
-  const c = isSpot ? COLOR[spotlight] : COLOR[node.status as SpotStatus];
 
   return (
     <group ref={g} position={node.p}>
       <Billboard>
-        {/* ink ring */}
-        <mesh>
-          <ringGeometry args={[node.r * 1.75, node.r * 1.95, 48]} />
-          <meshBasicMaterial color={INK} transparent opacity={isSpot ? 0.55 : 0.28} />
-        </mesh>
-        {/* filled point */}
-        <mesh>
-          <circleGeometry args={[node.r, 40]} />
-          <meshBasicMaterial ref={inner} color={c} />
+        <mesh scale={node.r * 5.4}>
+          <planeGeometry args={[1, 1]} />
+          <meshBasicMaterial
+            ref={halo}
+            map={haloTexture}
+            color={isSpot ? COLOR[spotlight] : COLOR[node.status as SpotStatus]}
+            transparent
+            opacity={0.3}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            toneMapped={false}
+          />
         </mesh>
       </Billboard>
+      <mesh>
+        <sphereGeometry args={[node.r, 24, 24]} />
+        <meshStandardMaterial
+          ref={core}
+          color={isSpot ? COLOR[spotlight] : COLOR[node.status as SpotStatus]}
+          emissive={isSpot ? COLOR[spotlight] : COLOR[node.status as SpotStatus]}
+          emissiveIntensity={isSpot ? 2.6 : 1.9}
+          roughness={0.35}
+          metalness={0.1}
+          toneMapped={false}
+        />
+      </mesh>
     </group>
   );
 }
@@ -125,17 +187,19 @@ function Plate({ spotlight }: { spotlight: SpotStatus }) {
         const nb = byId.get(b);
         if (!na || !nb) return null;
         const touches = na.status === 'spot' || nb.status === 'spot';
+        const style = LINK_STYLE[kind];
         return (
           <Line
             key={`${a}-${b}`}
             points={[na.p, nb.p]}
-            color={kind === 'corr' ? COLOR.amber : INK}
-            lineWidth={kind === 'pre' ? 1 : 0.9}
+            color={style.color}
+            lineWidth={style.width}
             transparent
-            opacity={kind === 'corr' ? 0.75 : touches ? 0.55 : kind === 'rel' ? 0.22 : 0.34}
-            dashed={kind !== 'pre'}
-            dashSize={kind === 'corr' ? 0.22 : 0.3}
-            gapSize={kind === 'corr' ? 0.14 : 0.22}
+            opacity={touches ? Math.min(1, style.opacity * 1.3) : style.opacity}
+            dashed={style.dashed ?? false}
+            dashSize={style.dashed ? 0.22 : undefined}
+            gapSize={style.dashed ? 0.14 : undefined}
+            toneMapped={false}
           />
         );
       })}
@@ -165,7 +229,13 @@ export function Hero3D({ spotlight }: { spotlight: SpotStatus }) {
         }}
         style={{ pointerEvents: 'none' }}
       >
+        <ambientLight intensity={0.4} color="#8fa8ff" />
+        <pointLight position={[8, 6, 6]} intensity={12} color="#67e8f9" distance={40} decay={2} />
+        <pointLight position={[-8, -4, -6]} intensity={10} color="#a78bfa" distance={40} decay={2} />
         <Plate spotlight={spotlight} />
+        <EffectComposer>
+          <Bloom luminanceThreshold={0.7} intensity={0.65} mipmapBlur luminanceSmoothing={0.2} radius={0.7} />
+        </EffectComposer>
       </Canvas>
     </Suspense>
   );
