@@ -35,15 +35,28 @@ this needs no CLI and no local build.
 
 Every push to `main` redeploys automatically after this.
 
-## 2. Backend → Render (free tier, ~10 min)
+## 2. Backend → Render (free tier, ~5 min)
 
-1. **render.com → New → Web Service**, connect the same GitHub repo.
-2. Settings:
-   - **Root Directory:** `server`
-   - **Build Command:** `npm install`
-   - **Start Command:** `npm start`
-   - **Instance Type:** Free is fine for judging (it sleeps after ~15 min idle and takes
-     ~50 s to wake — **wake it before a live demo**).
+**These exact settings are verified — Render's auto-detection gets several of them
+wrong, so set each one deliberately.**
+
+1. **render.com → New → Web Service**.
+2. **Source Code → "Public Git Repository"** tab (not "Git Provider") and paste
+   `https://github.com/AdamACE9/zynth`. This skips granting Render OAuth access to
+   your whole GitHub account. Click **Connect**.
+3. Settings — the four Render gets wrong are marked ⚠:
+
+   | Field | Value | Note |
+   |---|---|---|
+   | Name | `zynth-api` | |
+   | Language | **Node** | ⚠ Render defaults to **Docker** |
+   | Branch | `main` | |
+   | **Root Directory** | **leave BLANK** | ⚠ Must build from the repo root, or npm can't resolve the `@zynth/shared` workspace |
+   | Build Command | `npm install --include=dev` | ⚠ `--include=dev` is required: Render sets `NODE_ENV=production`, which would skip `tsx` (a devDependency the server starts with) |
+   | Start Command | `npm run start --workspace @zynth/server` | ⚠ Run from root so workspaces resolve |
+   | Instance Type | **Free** | ⚠ Render pre-selects **Starter ($7/mo)** |
+
+4. Environment variables (see the table below), then **Deploy Web Service**.
 3. Environment variables (paste these in Render's dashboard — never commit them):
 
    | Name | Value |
@@ -52,8 +65,12 @@ Every push to `main` redeploys automatically after this.
    | `GEMINI_MODEL` | `gemini-2.5-flash` |
    | `GROQ_API_KEY` | your Groq key (free-response grading) |
    | `GROQ_MODEL` | `llama-3.3-70b-versatile` |
-   | `CLIENT_ORIGIN` | your Vercel URL, e.g. `https://zynth.vercel.app` |
+   | `CLIENT_ORIGIN` | your Vercel URL, e.g. `https://zynth.vercel.app` — **required, or CORS blocks the frontend** |
+   | `NODE_VERSION` | `22` — better-sqlite3 needs a matching prebuilt binary |
    | `DATABASE_PATH` | `/var/data/zynth.sqlite` if you attach a disk, else leave default |
+
+   Without the two API keys the server still boots and serves the graph — it just runs
+   in `STUB_MODE` with canned AI output, which is a safe fallback for a public URL.
 
 4. **Persistent data (optional).** Render's free tier has an ephemeral filesystem, so the
    SQLite DB resets on each restart — which is arguably *good* for judging, since every
