@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { QUIZ_PASS_THRESHOLD, type ErrorType, type MistakeRecord, type QuizQuestion, type QuizSession } from '@zynth/shared';
-import { DEMO_STUDENT_ID } from '../config';
+import { getActiveStudentId } from '../config';
 import { nodesRepo, quizSessionsRepo, mistakeRecordsRepo } from '../db/repositories';
 import { applyQuizResult } from '../services/statusService';
 import { generateQuiz, gradeQuiz, buildMistakeExcerpt, registerQuizSession } from '../services/quizService';
@@ -65,7 +65,7 @@ quizRouter.post('/quiz', (req, res) => {
 
   const session: QuizSession = {
     id: `quiz_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: getActiveStudentId(),
     node_ids,
     questions,
     score,
@@ -170,9 +170,10 @@ quizRouter.post('/quiz/submit', async (req, res) => {
 
   const { questions: graded, score, passed } = await gradeQuiz(questions as QuizQuestion[]);
 
+  const studentId = getActiveStudentId();
   const session: QuizSession = {
     id: `quiz_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: studentId,
     node_ids,
     questions: graded,
     score,
@@ -196,7 +197,7 @@ quizRouter.post('/quiz/submit', async (req, res) => {
     const errorType = inferErrorType(q);
     const mistake: MistakeRecord = {
       id: `mistake_${nanoid(10)}`,
-      student_id: DEMO_STUDENT_ID,
+      student_id: studentId,
       node_id: q.node_id,
       source: 'quiz',
       raw_excerpt: buildMistakeExcerpt(q),

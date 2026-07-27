@@ -1,11 +1,12 @@
 import http from 'node:http';
 import express from 'express';
 import cors from 'cors';
-import { config, STUB_MODE } from './config';
+import { config, STUB_MODE, DEMO_STUDENT_ID } from './config';
 import { runMigrations, db } from './db/connection';
 import { seed } from './db/seed';
 import { apiRouter } from './routes';
 import { initSocket } from './socket';
+import { ensureSeedWorkspace } from './services/workspaceService';
 
 runMigrations();
 
@@ -14,6 +15,11 @@ if (nodeCount === 0) {
   // eslint-disable-next-line no-console
   console.log('[index] nodes table is empty — auto-seeding demo data...');
   seed();
+} else {
+  // seed() (which also registers the sample workspace row) only runs on a
+  // fresh database. Existing databases from before workspaces existed still
+  // need that row backfilled — idempotent, does not touch nodes/edges.
+  ensureSeedWorkspace(DEMO_STUDENT_ID, 'Calculus & Physics (sample)', ['Calculus', 'Physics']);
 }
 
 const app = express();

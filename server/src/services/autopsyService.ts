@@ -27,7 +27,7 @@ import {
   type MistakeRecord,
   type Node,
 } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { nodesRepo, edgesRepo, mistakeRecordsRepo } from '../db/repositories';
 import { emitAutopsyProgress, emitEdgeCreated, emitNodeCreated } from '../socket';
 
@@ -468,7 +468,8 @@ If there is no real cross-concept pattern, return an empty clusters array.`;
 export async function analyze(text: string): Promise<AutopsyResult> {
   emitAutopsyProgress({ message: 'Extracting mistakes…' });
 
-  const existingNodes = nodesRepo.getAll(DEMO_STUDENT_ID);
+  const studentId = getActiveStudentId();
+  const existingNodes = nodesRepo.getAll(studentId);
   const nodesById = new Map(existingNodes.map((n) => [n.id, n]));
   const nodesByLabelLower = new Map(existingNodes.map((n) => [n.label.toLowerCase(), n]));
 
@@ -499,7 +500,7 @@ export async function analyze(text: string): Promise<AutopsyResult> {
       const ts = nowIso();
       const node: Node = {
         id,
-        student_id: DEMO_STUDENT_ID,
+        student_id: studentId,
         label,
         subject,
         cluster: subject,
@@ -526,7 +527,7 @@ export async function analyze(text: string): Promise<AutopsyResult> {
 
     const record: MistakeRecord = {
       id: `mistake_${nanoid(10)}`,
-      student_id: DEMO_STUDENT_ID,
+      student_id: studentId,
       node_id: nodeId,
       source: 'uploaded_homework',
       raw_excerpt: m.excerpt,
@@ -542,7 +543,7 @@ export async function analyze(text: string): Promise<AutopsyResult> {
   });
 
   // Cluster across EVERY mistake on file for this student, not just this run.
-  const allMistakes = mistakeRecordsRepo.getByStudent(DEMO_STUDENT_ID);
+  const allMistakes = mistakeRecordsRepo.getByStudent(studentId);
   const clusterInput: ClusterMistakeInput[] = allMistakes.map((mr) => {
     const node = nodesById.get(mr.node_id) ?? nodesRepo.getById(mr.node_id);
     return {
@@ -570,7 +571,7 @@ export async function analyze(text: string): Promise<AutopsyResult> {
 
         const edge: Edge = {
           id: `edge_autopsy_${nanoid(10)}`,
-          student_id: DEMO_STUDENT_ID,
+          student_id: studentId,
           source_node_id: a,
           target_node_id: b,
           relationship_type: 'correlated_error',

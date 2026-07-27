@@ -38,7 +38,7 @@ import type {
   Status,
   StatusChangeCause,
 } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { db } from '../db/connection';
 import { nodesRepo, edgesRepo, planPathsRepo } from '../db/repositories';
 import { emitPlanUpdated } from '../socket';
@@ -286,8 +286,8 @@ interface BuiltRoute {
 
 /** Builds the full ordered route for a goal from the CURRENT graph state. */
 export async function buildNodeSequence(goal: string): Promise<BuiltRoute> {
-  const nodes = nodesRepo.getAll(DEMO_STUDENT_ID);
-  const edges = edgesRepo.getAll(DEMO_STUDENT_ID);
+  const nodes = nodesRepo.getAll(getActiveStudentId());
+  const edges = edgesRepo.getAll(getActiveStudentId());
   const prereqEdges = edges.filter((e) => e.relationship_type === 'prerequisite');
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const stableIndexOf = new Map(nodes.map((n, i) => [n.id, i]));
@@ -428,14 +428,21 @@ function findLatestPlanId(studentId: string): string | null {
   return row?.id ?? null;
 }
 
-let currentPlanId: string | null = null;
+// Keyed by student_id (= workspace) rather than a single scalar — otherwise
+// switching the active workspace would keep serving/replanning whichever
+// workspace's plan happened to be cached first.
+const currentPlanIdByStudent = new Map<string, string>();
 
 function getActivePlan(): PlanPath | undefined {
-  if (!currentPlanId) {
-    currentPlanId = findLatestPlanId(DEMO_STUDENT_ID);
+  const studentId = getActiveStudentId();
+  let planId = currentPlanIdByStudent.get(studentId);
+  if (!planId) {
+    const found = findLatestPlanId(studentId);
+    if (!found) return undefined;
+    planId = found;
+    currentPlanIdByStudent.set(studentId, planId);
   }
-  if (!currentPlanId) return undefined;
-  return planPathsRepo.getById(currentPlanId);
+  return planPathsRepo.getById(planId);
 }
 
 // ---------------------------------------------------------------------------
@@ -444,13 +451,14 @@ function getActivePlan(): PlanPath | undefined {
 
 /** POST /api/plan — builds a brand-new route and makes it the active plan. */
 export async function createPlan(goal: string): Promise<GhostPath> {
+  const studentId = getActiveStudentId();
   const trimmedGoal = goal.trim();
   const { sequence } = await buildNodeSequence(trimmedGoal);
   const now = nowIso();
 
   const plan: PlanPath = {
     id: `plan_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: studentId,
     goal: trimmedGoal,
     node_sequence: sequence,
     current_position: computeActualPosition(sequence),
@@ -459,7 +467,7 @@ export async function createPlan(goal: string): Promise<GhostPath> {
     created_at: now,
   };
   planPathsRepo.insert(plan);
-  currentPlanId = plan.id;
+  currentPlanIdByStudent.set(studentId, plan.id);
 
   return computeGhostPath(plan);
 }

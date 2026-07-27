@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import type { ExamSimSession, MistakeRecord, Node, QuizQuestion } from '@zynth/shared';
-import { DEMO_STUDENT_ID } from '../config';
+import { getActiveStudentId } from '../config';
 import { examSimSessionsRepo, mistakeRecordsRepo, nodesRepo } from '../db/repositories';
 import { gradeAndStreamExam, generateExamQuestions, selectExamNodes } from '../services/examService';
 
@@ -58,6 +58,7 @@ examRouter.post('/exam/start', async (req, res) => {
   const { node_ids, source_paper, question_count } = parsed.data;
   const questionCount = question_count ?? DEFAULT_QUESTION_COUNT;
 
+  const studentId = getActiveStudentId();
   let nodes: Node[];
   if (node_ids && node_ids.length > 0) {
     const resolved = node_ids.map((id) => nodesRepo.getById(id));
@@ -68,7 +69,7 @@ examRouter.post('/exam/start', async (req, res) => {
     }
     nodes = resolved as Node[];
   } else {
-    const all = nodesRepo.getAll(DEMO_STUDENT_ID);
+    const all = nodesRepo.getAll(studentId);
     if (all.length === 0) {
       res.status(400).json({ error: 'No nodes exist for this student yet — nothing to build an exam from.' });
       return;
@@ -82,7 +83,7 @@ examRouter.post('/exam/start', async (req, res) => {
   const paperLabel = source_paper?.trim() || `Simulated Paper — ${new Date().toLocaleDateString()}`;
 
   pendingExams.set(sessionId, {
-    student_id: DEMO_STUDENT_ID,
+    student_id: studentId,
     source_paper: paperLabel,
     questions,
     duration_seconds,

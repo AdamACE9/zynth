@@ -26,7 +26,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import type { Node } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, DEMO_STUDENT_ID, getActiveStudentId } from '../config';
 import { db } from '../db/connection';
 import { nodesRepo } from '../db/repositories';
 
@@ -152,7 +152,7 @@ function insertRow(row: QuestionRow): void {
 function getOpenRows(): QuestionRow[] {
   return db
     .prepare("SELECT * FROM office_hours_questions WHERE student_id = ? AND status = 'open' ORDER BY created_at ASC")
-    .all(DEMO_STUDENT_ID) as QuestionRow[];
+    .all(getActiveStudentId()) as QuestionRow[];
 }
 
 function getRowById(id: string): QuestionRow | undefined {
@@ -339,7 +339,7 @@ const CLASSIFY_SCHEMA = {
 } as const;
 
 async function classifyQuestion(question: string): Promise<string | null> {
-  const nodes = nodesRepo.getAll(DEMO_STUDENT_ID);
+  const nodes = nodesRepo.getAll(getActiveStudentId());
   if (nodes.length === 0) return null;
 
   if (STUB_MODE || !ai) {
@@ -388,7 +388,7 @@ export async function ask(question: string, askerName?: string): Promise<OfficeH
   const nodeId = await classifyQuestion(trimmed);
   const row: QuestionRow = {
     id: `ohq_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: getActiveStudentId(),
     asker_name: askerName?.trim() || 'Anonymous',
     question: trimmed,
     node_id: nodeId,

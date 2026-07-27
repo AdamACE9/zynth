@@ -12,7 +12,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import type { AgentName, Node, WarRoomMessage, WarRoomPersona, WarRoomSession } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { AGENT_CONFIGS } from './personas';
 import { nodesRepo, warRoomSessionsRepo } from '../db/repositories';
 import { emitWarRoomTurn, emitWarRoomResolved } from '../socket';
@@ -160,7 +160,7 @@ async function runDebate(sessionId: string, node: Node): Promise<void> {
 
   const session: WarRoomSession = {
     id: sessionId,
-    student_id: DEMO_STUDENT_ID,
+    student_id: getActiveStudentId(),
     node_id: node.id,
     transcript,
     outcome: 'understood',

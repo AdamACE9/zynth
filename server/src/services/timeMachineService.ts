@@ -46,7 +46,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import type { Edge, Node, Status } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { db } from '../db/connection';
 import { nodesRepo, edgesRepo } from '../db/repositories';
 
@@ -197,8 +197,9 @@ function topoSortByPriority(
  * order, tie-broken by goal relevance (if a goal was given) then red-before-
  * amber then stable graph order. */
 function buildBaselineSequence(goal: string | null): string[] {
-  const nodes = nodesRepo.getAll(DEMO_STUDENT_ID);
-  const prereqEdges = edgesRepo.getAll(DEMO_STUDENT_ID).filter((e) => e.relationship_type === 'prerequisite');
+  const studentId = getActiveStudentId();
+  const nodes = nodesRepo.getAll(studentId);
+  const prereqEdges = edgesRepo.getAll(studentId).filter((e) => e.relationship_type === 'prerequisite');
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const stableIndexOf = new Map(nodes.map((n, i) => [n.id, i]));
   const included = new Set(nodes.filter((n) => n.status !== 'green').map((n) => n.id));
@@ -466,7 +467,7 @@ async function buildReroute(ctx: RerouteContext): Promise<TimeMachineReroute> {
 
 async function computeResult(row: TmRunRow): Promise<TimeMachineResult> {
   const sequence: string[] = JSON.parse(row.node_sequence);
-  const prereqEdges = edgesRepo.getAll(DEMO_STUDENT_ID).filter((e) => e.relationship_type === 'prerequisite');
+  const prereqEdges = edgesRepo.getAll(row.student_id).filter((e) => e.relationship_type === 'prerequisite');
 
   const totalDays = Math.max(1, daysBetween(row.created_at, row.exam_date));
   const totalWeeks = Math.max(1, Math.ceil(totalDays / CHECKPOINT_SPAN_DAYS));
@@ -603,15 +604,24 @@ function findLatestRunRow(studentId: string): TmRunRow | null {
   return row ?? null;
 }
 
-let currentRunId: string | null = null;
+// Keyed by student_id (= workspace) — otherwise switching the active
+// workspace would keep serving whichever workspace's run happened to be
+// cached first.
+const currentRunIdByStudent = new Map<string, string>();
 
 function getActiveRunRow(): TmRunRow | null {
-  if (currentRunId) {
-    const row = db.prepare('SELECT * FROM tm_runs WHERE id = ?').get(currentRunId) as TmRunRow | undefined;
+  const studentId = getActiveStudentId();
+  const cachedId = currentRunIdByStudent.get(studentId);
+  if (cachedId) {
+    const row = db.prepare('SELECT * FROM tm_runs WHERE id = ?').get(cachedId) as TmRunRow | undefined;
     if (row) return row;
   }
-  const latest = findLatestRunRow(DEMO_STUDENT_ID);
-  currentRunId = latest?.id ?? null;
+  const latest = findLatestRunRow(studentId);
+  if (latest) {
+    currentRunIdByStudent.set(studentId, latest.id);
+  } else {
+    currentRunIdByStudent.delete(studentId);
+  }
   return latest;
 }
 
@@ -621,6 +631,7 @@ function getActiveRunRow(): TmRunRow | null {
 
 /** POST /api/timemachine — builds a brand-new baseline schedule. */
 export async function createTimeMachineRun(goal: string | null, examDate: string | null): Promise<TimeMachineResult> {
+  const studentId = getActiveStudentId();
   const created = nowIso();
   const trimmedGoal = goal && goal.trim().length > 0 ? goal.trim() : null;
   const parsedExamDate = examDate ? new Date(examDate) : null;
@@ -631,7 +642,7 @@ export async function createTimeMachineRun(goal: string | null, examDate: string
 
   const row: TmRunRow = {
     id: `tm_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: studentId,
     goal: trimmedGoal,
     exam_date: examDateIso,
     node_sequence: JSON.stringify(sequence),
@@ -640,7 +651,7 @@ export async function createTimeMachineRun(goal: string | null, examDate: string
     reroute_because: null,
   };
   insertRun(row);
-  currentRunId = row.id;
+  currentRunIdByStudent.set(studentId, row.id);
 
   return computeResult(row);
 }

@@ -16,7 +16,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import type { Node } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { db } from '../db/connection';
 import { nodesRepo } from '../db/repositories';
 
@@ -281,7 +281,7 @@ Return "motion": the motion you invented, and "opening_statement": your OPENING 
 
   const session: DebateSession = {
     id: `debate_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: getActiveStudentId(),
     node_id: node?.id ?? null,
     motion,
     student_side: studentSide,

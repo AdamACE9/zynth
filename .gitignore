@@ -42,3 +42,6 @@ Thumbs.db
 # vite
 client/.vite/
 .cache/
+
+# firecrawl CLI local cache / scrape output — never commit scraped pages
+.firecrawl/

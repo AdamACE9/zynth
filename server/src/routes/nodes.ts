@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { DEMO_STUDENT_ID } from '../config';
+import { getActiveStudentId } from '../config';
 import { nodesRepo } from '../db/repositories';
 import { engageNode } from '../services/statusService';
 import { runWarRoom } from '../agents/orchestrator';
@@ -8,7 +8,7 @@ import { runWarRoomStream } from '../agents/warRoomStream';
 export const nodesRouter = Router();
 
 nodesRouter.get('/nodes', (_req, res) => {
-  res.json(nodesRepo.getAll(DEMO_STUDENT_ID));
+  res.json(nodesRepo.getAll(getActiveStudentId()));
 });
 
 nodesRouter.get('/nodes/:id', (req, res) => {

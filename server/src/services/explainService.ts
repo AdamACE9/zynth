@@ -15,7 +15,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import type { ExplainMessage, ExplainSession, MistakeRecord, Node, StatusHistoryEntry } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { AGENT_CONFIGS } from '../agents/personas';
 import { explainSessionsRepo, mistakeRecordsRepo, nodesRepo } from '../db/repositories';
 import { engageNode } from './statusService';
@@ -124,7 +124,8 @@ export async function sendExplainTurn(
     throw new Error(`sendExplainTurn: no node with id ${nodeId}`);
   }
 
-  const allMistakes = mistakeRecordsRepo.getByStudent(DEMO_STUDENT_ID);
+  const studentId = getActiveStudentId();
+  const allMistakes = mistakeRecordsRepo.getByStudent(studentId);
   const nodeMistakes = allMistakes.filter((m) => m.node_id === nodeId);
 
   // Load or create the session.
@@ -133,14 +134,14 @@ export async function sendExplainTurn(
     session = explainSessionsRepo.getById(sessionId);
   }
   if (!session) {
-    session = explainSessionsRepo.getByNode(DEMO_STUDENT_ID, nodeId) ?? undefined;
+    session = explainSessionsRepo.getByNode(studentId, nodeId) ?? undefined;
   }
 
   const isNewSession = !session;
   if (!session) {
     session = {
       id: `explain_${nanoid(10)}`,
-      student_id: DEMO_STUDENT_ID,
+      student_id: studentId,
       node_id: nodeId,
       messages: [],
       created_at: nowIso(),

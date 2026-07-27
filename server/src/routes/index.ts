@@ -13,10 +13,12 @@ import { timemachineRouter } from './timemachine';
 import { flashcardsRouter } from './flashcards';
 import { debateRouter } from './debate';
 import { officehoursRouter } from './officehours';
+import { workspacesRouter } from './workspaces';
 
 export const apiRouter = Router();
 
 apiRouter.use(healthRouter);
+apiRouter.use(workspacesRouter);
 apiRouter.use(graphRouter);
 apiRouter.use(nodesRouter);
 apiRouter.use(quizRouter);

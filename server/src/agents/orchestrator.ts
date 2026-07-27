@@ -8,7 +8,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import type { AgentName, WarRoomMessage, WarRoomPersona, WarRoomSession } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { AGENT_CONFIGS } from './personas';
 import { nodesRepo, warRoomSessionsRepo } from '../db/repositories';
 import { emitAgentThinking } from '../socket';
@@ -125,7 +125,7 @@ export async function runWarRoom(nodeId: string): Promise<WarRoomSession> {
 
   const session: WarRoomSession = {
     id: `warroom_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: getActiveStudentId(),
     node_id: nodeId,
     transcript,
     outcome: null,

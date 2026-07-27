@@ -26,6 +26,7 @@ import { db, runMigrations } from './connection';
 import { DEMO_STUDENT_ID } from '../config';
 import { nodesRepo, edgesRepo, studentsRepo, agentConfigsRepo, mistakeRecordsRepo } from './repositories';
 import { AGENT_CONFIGS } from '../agents/personas';
+import { ensureSeedWorkspace } from '../services/workspaceService';
 
 function daysAgo(n: number): string {
   const d = new Date();
@@ -302,6 +303,12 @@ export function seed(): void {
   runMigrations();
 
   studentsRepo.upsert(DEMO_STUDENT_ID, 'Demo Student');
+
+  // Give the original hand-authored demo graph its own workspace row so it
+  // shows up in the workspace switcher as "Calculus & Physics (sample)" —
+  // NOT what a new user gets after onboarding (that's real Gemini-generated
+  // workspaces via POST /api/workspaces, all red). Idempotent.
+  ensureSeedWorkspace(DEMO_STUDENT_ID, 'Calculus & Physics (sample)', ['Calculus', 'Physics']);
 
   for (const cfg of AGENT_CONFIGS) {
     agentConfigsRepo.upsert(cfg);

@@ -26,7 +26,7 @@
 import { GoogleGenAI } from '@google/genai';
 import { nanoid } from 'nanoid';
 import { computeMasteryScore, type Node } from '@zynth/shared';
-import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
+import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { db } from '../db/connection';
 import { nodesRepo } from '../db/repositories';
 import { emitNodeCreated } from '../socket';
@@ -404,7 +404,8 @@ Do not invent facts that are not supported by the text. Do not merge unrelated c
 // ---------------------------------------------------------------------------
 
 export async function forge(text: string): Promise<ForgeResult> {
-  const existingNodes = nodesRepo.getAll(DEMO_STUDENT_ID);
+  const studentId = getActiveStudentId();
+  const existingNodes = nodesRepo.getAll(studentId);
   const nodesById = new Map(existingNodes.map((n) => [n.id, n]));
   const nodesByLabelLower = new Map(existingNodes.map((n) => [n.label.toLowerCase(), n]));
 
@@ -437,7 +438,7 @@ export async function forge(text: string): Promise<ForgeResult> {
       const ts = nowIso();
       node = {
         id,
-        student_id: DEMO_STUDENT_ID,
+        student_id: studentId,
         label,
         subject,
         cluster: subject,
@@ -472,7 +473,7 @@ export async function forge(text: string): Promise<ForgeResult> {
     for (const raw of concept.cards) {
       const card: Flashcard = {
         id: `card_${nanoid(10)}`,
-        student_id: DEMO_STUDENT_ID,
+        student_id: studentId,
         node_id: node.id,
         front: raw.front,
         back: raw.back,
@@ -496,7 +497,7 @@ export async function forge(text: string): Promise<ForgeResult> {
 // ---------------------------------------------------------------------------
 
 export function getDueCards(limit = 20): Flashcard[] {
-  return flashcardsRepo.getDue(DEMO_STUDENT_ID, nowIso(), limit);
+  return flashcardsRepo.getDue(getActiveStudentId(), nowIso(), limit);
 }
 
 /**

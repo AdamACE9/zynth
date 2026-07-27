@@ -29,7 +29,7 @@ import type {
   QuizQuestion,
   Status,
 } from '@zynth/shared';
-import { DEMO_STUDENT_ID } from '../config';
+import { getActiveStudentId } from '../config';
 import { edgesRepo, mistakeRecordsRepo, nodesRepo } from '../db/repositories';
 import { emitCopilotHeatmap, emitCopilotInsight } from '../socket';
 import { lexicalOverlap } from '../agents/groqGrader';
@@ -887,7 +887,7 @@ function writeCarelessSlipMistakeRecord(record: AnsweredRecord): void {
   const questionWithAnswer: QuizQuestion = { ...record.question, given_answer: record.given_answer };
   const mistake: MistakeRecord = {
     id: `mistake_${nanoid(10)}`,
-    student_id: DEMO_STUDENT_ID,
+    student_id: getActiveStudentId(),
     node_id: record.question.node_id,
     source: 'quiz',
     raw_excerpt: buildMistakeExcerpt(questionWithAnswer),

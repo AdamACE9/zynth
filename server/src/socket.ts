@@ -20,7 +20,7 @@ import type {
   WarRoomOutcome,
   WarRoomPersona,
 } from '@zynth/shared';
-import { config, DEMO_STUDENT_ID } from './config';
+import { config, getActiveStudentId } from './config';
 import { nodesRepo, edgesRepo } from './db/repositories';
 
 type ZynthServer = Server<ClientToServerEvents, ServerToClientEvents>;
@@ -33,14 +33,14 @@ export function initSocket(httpServer: HttpServer): ZynthServer {
   });
 
   io.on('connection', (socket) => {
-    // Send a fresh snapshot to every newly connected client.
-    const nodes = nodesRepo.getAll(DEMO_STUDENT_ID);
-    const edges = edgesRepo.getAll(DEMO_STUDENT_ID);
+    // Send a fresh snapshot of the ACTIVE workspace to every newly connected client.
+    const nodes = nodesRepo.getAll(getActiveStudentId());
+    const edges = edgesRepo.getAll(getActiveStudentId());
     socket.emit('graph:snapshot', { nodes, edges });
 
     socket.on('graph:request_snapshot', () => {
-      const freshNodes = nodesRepo.getAll(DEMO_STUDENT_ID);
-      const freshEdges = edgesRepo.getAll(DEMO_STUDENT_ID);
+      const freshNodes = nodesRepo.getAll(getActiveStudentId());
+      const freshEdges = edgesRepo.getAll(getActiveStudentId());
       socket.emit('graph:snapshot', { nodes: freshNodes, edges: freshEdges });
     });
   });
