@@ -33,3 +33,21 @@ export function runMigrations(): void {
   const schemaSql = fs.readFileSync(SCHEMA_PATH, 'utf-8');
   db.exec(schemaSql);
 }
+
+/**
+ * Migrate IMMEDIATELY, as a side effect of opening the connection — before any
+ * other module can touch the database.
+ *
+ * index.ts imports `./routes` (line 7) before it calls runMigrations() (line 10),
+ * and ES module imports resolve first. So every service's module-load code —
+ * `db.exec('CREATE TABLE ...')`, `db.prepare(...)`, a first-run seed — executed
+ * against a schema-less database. That was invisible in development, where the
+ * db file already had its tables from a previous run, and fatal on a fresh
+ * deploy: the first boot on Render died with
+ * `SqliteError: no such table: nodes` and crash-looped.
+ *
+ * Anchoring migration to the connection itself makes the ordering impossible to
+ * get wrong; the explicit runMigrations() call in index.ts is now a harmless
+ * no-op kept for clarity.
+ */
+runMigrations();

@@ -253,7 +253,33 @@ function daysAgoIso(n: number): string {
   return d.toISOString();
 }
 
+let seedAttempted = false;
+
+/**
+ * Seeds the demo queue on FIRST USE, not at module load.
+ *
+ * This used to run as a top-level side effect, which crashed every fresh
+ * deployment: module imports resolve before index.ts calls runMigrations(), so
+ * `nodes` did not exist yet and better-sqlite3 threw
+ * `SqliteError: no such table: nodes`, taking the whole server down at boot.
+ * It only worked locally because the dev database file already had its tables.
+ *
+ * Deferring to the first request guarantees the schema is in place, and the
+ * try/catch means a seeding problem can degrade this one Tier 2 module rather
+ * than crash-looping the entire API.
+ */
 function seedIfEmpty(): void {
+  if (seedAttempted) return;
+  seedAttempted = true;
+  try {
+    seedQueue();
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[officeHoursService] seeding skipped:', err);
+  }
+}
+
+function seedQueue(): void {
   const row = db.prepare('SELECT COUNT(*) as count FROM office_hours_questions').get() as { count: number };
   if (row.count > 0) return;
 
@@ -278,7 +304,6 @@ function seedIfEmpty(): void {
   console.log(`[officeHoursService] Seeded ${SEED_SPECS.length} office hours questions.`);
 }
 
-seedIfEmpty();
 
 // ---------------------------------------------------------------------------
 // shared keyword helpers (deterministic fallbacks)
@@ -555,6 +580,7 @@ function buildBatch(raw: RawBatch, rowsById: Map<string, QuestionRow>): OfficeHo
  * answerBatchOrQuestion({ batch_id }) call resolves the exact same set.
  */
 export async function getQueue(): Promise<OfficeHoursBatch[]> {
+  seedIfEmpty(); // first-use seed — see the note on seedIfEmpty
   const openRows = getOpenRows();
   const rawBatches = await clusterQuestions(openRows);
   const rowsById = new Map(openRows.map((r) => [r.id, r]));
