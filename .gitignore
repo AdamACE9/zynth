@@ -45,3 +45,6 @@ client/.vite/
 
 # firecrawl CLI local cache / scrape output — never commit scraped pages
 .firecrawl/
+
+# Claude Code machine-local permission cache — not shared
+.claude/settings.local.json
