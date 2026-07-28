@@ -1,5 +1,6 @@
 import type { Status } from '@zynth/shared';
 import { STATUS_COLORS } from '@zynth/shared';
+import './ui.css';
 
 const GLOW: Record<Status, string> = {
   red: 'var(--status-red-glow)',
@@ -25,7 +26,7 @@ export function Legend() {
       aria-label="Mastery colour key"
       className="glass-chip pointer-events-none fixed bottom-6 left-6 z-10 hidden px-4 py-3.5 lg:block"
     >
-      <div className="section-label" style={{ fontSize: 10 }}>
+      <div className="zc-mono" style={{ fontSize: 10 }}>
         Mastery
       </div>
       <dl className="mt-3 flex flex-col gap-2">
@@ -33,7 +34,7 @@ export function Legend() {
           <div key={item.status} className="flex items-center gap-2.5">
             <span
               aria-hidden
-              className="h-2 w-2 shrink-0 rounded-full"
+              className="zc-dot"
               style={{
                 backgroundColor: STATUS_COLORS[item.status],
                 boxShadow: `0 0 9px ${GLOW[item.status]}, 0 0 2px ${GLOW[item.status]}`,

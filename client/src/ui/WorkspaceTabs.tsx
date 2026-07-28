@@ -142,6 +142,7 @@ export function WorkspaceTabs({ onWorkspaceSwitched, onCreateWorkspace }: Worksp
               transition={{ duration: 0.16 }}
               className="glass-chip group flex shrink-0 items-center gap-1 py-1 pl-3 pr-1.5"
               style={{
+                borderRadius: 'var(--radius-full)',
                 borderColor: isActive ? 'rgba(82, 229, 232, 0.55)' : undefined,
                 background: isActive ? 'rgba(82, 229, 232, 0.1)' : undefined,
               }}

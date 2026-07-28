@@ -62,10 +62,16 @@ export default function App() {
     };
   }, [view]);
 
-  // The full-viewport vignette + heavy grain exist to frame the 3D graph; over
-  // a long scrolling page they just wash everything grey. index.css keys off this.
+  // Two things key off this in index.css:
+  //   1. the full-viewport vignette + heavy grain, which frame the 3D graph but
+  //      just wash a long scrolling page grey;
+  //   2. the viewport lock. The graph app owns the screen and must never
+  //      scroll; the marketing site is a ~7700px document and must. That lock
+  //      lives on <html> as well as <body>, so the attribute goes on both
+  //      rather than making the CSS depend on :has().
   useEffect(() => {
     document.body.dataset.view = view;
+    document.documentElement.dataset.view = view;
   }, [view]);
 
   // NOTE: deliberately NOT <AnimatePresence mode="wait">. That waits for the

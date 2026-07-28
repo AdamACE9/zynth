@@ -42,7 +42,33 @@
   /* -- Radius scale: exactly three ------------------------------------------*/
   --radius-sm: 10px;
   --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 34px;
   --radius-full: 9999px;
+
+  /* -- Type ----------------------------------------------------------------
+     One family set across the app and the marketing site, so the two read as
+     a single product rather than a product plus a brochure. */
+  --f-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --f-ui: 'Inter', system-ui, -apple-system, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* -- Motion --------------------------------------------------------------
+     The whole system. Shared with site.css deliberately — the app and the site
+     must move identically or the seam shows the moment you click through.
+
+       --ease-out    anything entering the screen
+       --ease-inout  anything moving while already on screen
+       --ease-micro  hover/press, always under 200ms
+
+     Entrances travel 24px and unblur 6px. Nothing travels further, nothing
+     bounces, nothing celebrates — this product diagnoses. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-micro: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-micro: 160ms;
+  --t-base: 320ms;
+  --t-reveal: 760ms;
 }
 
 html,
@@ -104,6 +130,19 @@ body::before {
   z-index: 5;
   pointer-events: none;
   background: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 55%, rgba(2, 2, 6, 0.5) 100%);
+}
+
+/* The graph app owns the viewport and must never scroll — hence the height:100%
+   + overflow:hidden lock above. The marketing site is the opposite: a ~7700px
+   document that has to scroll, and whose sticky nav needs a real scrolling
+   root. Unlock all three elements for it. App.tsx sets data-view on <html> and
+   <body> both, so this needs no :has(). */
+html[data-view='landing'],
+body[data-view='landing'],
+body[data-view='landing'] #root {
+  height: auto;
+  min-height: 100%;
+  overflow: visible;
 }
 
 body[data-view='landing']::before {

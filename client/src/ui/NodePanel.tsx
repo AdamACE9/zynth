@@ -1,9 +1,11 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { Node, QuizResultSummary, Status } from '@zynth/shared';
 import { masteryStreak, STATUS_COLORS } from '@zynth/shared';
 import { engageNode } from '../lib/api';
 import { StreakFlame } from './StreakFlame';
+import { EASE_OUT, EASE_INOUT, revealFrom, REVEAL_IN } from './motion';
+import './ui.css';
 
 interface NodePanelProps {
   node: Node;
@@ -82,11 +84,28 @@ const ACTIONS: Array<{ type: ActionType; label: string; description: string; ico
   { type: 'quiz', label: 'Quiz', description: 'Prove it — the only path to green', icon: <QuizIcon />, accent: '#eef1fb' },
 ];
 
-/** A single "what to do next" recommendation, driven purely by node.status. */
-const RECOMMENDATION: Record<Status, { text: string; action: ActionType }> = {
-  red: { text: 'Nothing proven here yet. Engage it in the War Room or with Explain to move it to amber.', action: 'warroom' },
-  amber: { text: "You've engaged it but not proven it. Pass a quiz — that's the only way to green.", action: 'quiz' },
-  green: { text: 'Proven. Retest now and then to keep it green; a failed retest drops it back to amber.', action: 'quiz' },
+/**
+ * The verdict, driven purely by node.status: a bright claim (`lead`) and its
+ * qualification (`tail`) — the .zc-duo device — plus which action would move
+ * it. `lead` is the one place status colour is allowed on text, because it IS
+ * the mastery claim, not decoration.
+ */
+const RECOMMENDATION: Record<Status, { lead: string; tail: string; action: ActionType }> = {
+  red: {
+    lead: 'Unproven.',
+    tail: 'Nothing here yet — engage it in the War Room or with Explain to move it to amber.',
+    action: 'warroom',
+  },
+  amber: {
+    lead: 'Engaged, not proven.',
+    tail: "Pass a quiz — that's the only path to green.",
+    action: 'quiz',
+  },
+  green: {
+    lead: 'Proven.',
+    tail: 'Retest now and then to keep it green; a failed retest drops it back to amber.',
+    action: 'quiz',
+  },
 };
 
 function formatTimestamp(value: string | null): string {
@@ -113,7 +132,7 @@ function Fact({ label, value, color, rule = true }: { label: string; value: stri
       className="flex items-baseline justify-between gap-3 py-2"
       style={rule ? { borderBottom: '1px solid var(--border-glass)' } : undefined}
     >
-      <dt style={{ color: 'var(--text-muted)', fontSize: 12 }}>{label}</dt>
+      <dt className="zc-mono" style={{ fontSize: 9.5 }}>{label}</dt>
       <dd
         className="tabular-nums truncate text-right"
         style={{ color: color ?? 'var(--text-secondary)', fontSize: 12.5, fontWeight: 500 }}
@@ -139,6 +158,7 @@ function Fact({ label, value, color, rule = true }: { label: string; value: stri
 export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen }: NodePanelProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [engaging, setEngaging] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (!toast) return;
@@ -183,10 +203,10 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
   return (
     <motion.aside
       aria-label={`${node.label} — concept detail`}
-      initial={{ x: 60, opacity: 0 }}
-      animate={{ x: 0, opacity: 1 }}
-      exit={{ x: 40, opacity: 0, transition: { duration: 0.18, ease: 'easeIn' } }}
-      transition={{ type: 'spring', stiffness: 260, damping: 30 }}
+      initial={reduceMotion ? false : revealFrom()}
+      animate={REVEAL_IN}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12, filter: 'blur(0px)', transition: { duration: 0.2, ease: EASE_INOUT } }}
+      transition={{ duration: reduceMotion ? 0 : 0.42, ease: EASE_OUT }}
       className="glass-panel glass-panel-strong pointer-events-auto fixed right-3 top-[72px] z-20 flex w-[25rem] max-w-[92vw] flex-col p-5 sm:right-6 sm:top-[84px] sm:p-6"
       style={{ maxHeight: PANEL_MAX_HEIGHT }}
     >
@@ -194,7 +214,7 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
           body below scrolls on short viewports. */}
       <div className="flex shrink-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="section-label truncate" style={{ fontSize: 10 }}>
+          <div className="zc-mono truncate" style={{ fontSize: 10 }}>
             {node.subject}
           </div>
           <h2
@@ -256,7 +276,7 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
               }}
             />
           </div>
-          <div className="section-label mt-2" style={{ fontSize: 10 }}>
+          <div className="zc-mono mt-2" style={{ fontSize: 10 }}>
             Mastery score
           </div>
         </section>
@@ -268,18 +288,18 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
           <Fact label="Retests" value={`${node.retest_count}×`} rule={false} />
         </dl>
 
-        {/* ---- What do I do next ------------------------------------------ */}
-        <section className="mt-6" aria-label="Next step">
+        {/* ---- The verdict, and what would move it ------------------------ */}
+        <section className="mt-6" aria-label="Verdict">
           <div className="flex items-baseline gap-2">
             <span aria-hidden style={{ color: statusColor, fontSize: 11 }}>
               {'▍'}
             </span>
-            <span className="section-label" style={{ fontSize: 10, color: statusColor }}>
-              Do this next
+            <span className="zc-mono" style={{ fontSize: 10, color: statusColor }}>
+              Verdict
             </span>
           </div>
-          <p className="mt-2" style={{ color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.55 }}>
-            {recommendation.text}
+          <p className="zc-duo mt-2">
+            <b style={{ color: statusColor }}>{recommendation.lead}</b> {recommendation.tail}
           </p>
 
           <div className="mt-3.5 flex flex-col gap-2">

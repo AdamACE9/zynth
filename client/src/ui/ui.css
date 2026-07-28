@@ -1,0 +1,148 @@
+/* ============================================================================
+   Zynth — app chrome (client/src/ui/**)
+   ----------------------------------------------------------------------------
+   Tokens (--text-*, --status-*, --accent-*, --border-glass, --f-mono, motion
+   vars) all come from the global :root in client/src/index.css — this file
+   only adds component-level primitives on top of them.
+
+   Everything here is namespaced `zc-` (Zynth Chrome) on purpose. site.css and
+   screens/rooms.css both define bare, unscoped classes with the same names we
+   would otherwise want (`.mono`, `.duo`, `.dot`, `.tag` …) and every stylesheet
+   in this app ends up loaded into one global sheet — a bare `.mono` here would
+   either collide with theirs or silently depend on a class owned by a
+   directory this agent doesn't control. `zc-` keeps this file self-contained.
+
+   EVERYTHING BELOW IS IN @layer components, same reasoning as rooms.css:
+   Vite injects a component-imported stylesheet AFTER the framework sheet, so
+   an unlayered `.zc-instrument-btn { display: flex }` would outrank Tailwind's
+   `hidden` utility and break the responsive show/hide on the Plan/Timeline/
+   Exam buttons. Declaring the layer pins these below `utilities`, where a
+   utility class is always allowed to win. */
+@layer theme, base, components, utilities;
+
+@layer components {
+
+/* ---- mono evidence label -------------------------------------------------
+   The instrument-panel device carried in from the marketing site: section
+   eyebrows, field labels, timestamps, counts. This is what makes the chrome
+   read as an instrument rather than a UI skin. Size/colour are the sane
+   default; callers override via inline style same as the rest of this
+   codebase's idiom (see NodePanel/TopBar). */
+.zc-mono {
+  font-family: var(--f-mono);
+  font-size: 0.688rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ---- the duo line ---------------------------------------------------------
+   A bright claim, then its qualification in a lower register, one breath.
+   The fundamental copy unit for a verdict — what NodePanel and CopilotPanel
+   use to state "what is true" without a bullet list. */
+.zc-duo {
+  font-size: 0.8125rem;
+  line-height: 1.58;
+  color: var(--text-muted);
+  margin: 0;
+}
+.zc-duo b {
+  color: var(--text-primary);
+  font-weight: 650;
+}
+
+/* ---- status dot ------------------------------------------------------------
+   The atom of the mastery colour language. This file never assigns red/amber
+   /green itself — callers pass the colour, because color is evidence and this
+   is just the shape that carries it. */
+.zc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+
+/* Long model output / pasted text must never blow out a fixed-width panel. */
+.zc-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* ============================================================================
+   TopBar — instrument strip
+   ----------------------------------------------------------------------------
+   Plan / Timeline / Exam / Autopsy read as one segmented instrument, not four
+   separate buttons: a single glass shell, hairline dividers between entries.
+   Display itself is left entirely to Tailwind's `hidden`/`sm:flex`/`lg:flex`
+   on each button (see TopBar.tsx) — this only adds the internal layout and
+   the divider, gated behind the same `sm` breakpoint at which more than one
+   button is ever visible. Below it only Autopsy shows, with nothing to its
+   left to divide from.
+
+   Deliberately no `overflow: hidden` here — `.btn-chip` only ever transitions
+   text colour (no hover fill to clip), and clipping would also cut off the
+   focus-visible ring on the end buttons for keyboard users. */
+.zc-instrument {
+  display: flex;
+  align-items: stretch;
+}
+.zc-instrument-btn {
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+@media (min-width: 640px) {
+  .zc-instrument-btn:not(:first-child) {
+    border-left: 1px solid var(--border-glass);
+  }
+}
+
+/* ============================================================================
+   CopilotPanel — a diagnostic interruption, not a toast
+   ========================================================================= */
+.zc-cp-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.035);
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.zc-cp-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border-glass);
+  border-radius: 8px;
+  color: var(--text-muted);
+  background: transparent;
+  transition:
+    background var(--t-micro) var(--ease-micro),
+    border-color var(--t-micro) var(--ease-micro),
+    color var(--t-micro) var(--ease-micro);
+}
+.zc-cp-icon-btn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--border-glass-hover);
+  color: var(--text-primary);
+}
+
+/* ============================================================================
+   WorkspaceTabs
+   ========================================================================= */
+.zc-tab-input {
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+} /* @layer components */
