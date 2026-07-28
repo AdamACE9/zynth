@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 
 export type DemoStatus = 'red' | 'amber' | 'green';
 
@@ -48,6 +48,10 @@ export function DemoNode({ status, pulseKey, size = 176 }: DemoNodeProps) {
   const meta = DEMO_STATUS_META[status];
   const core = Math.round(size * 0.5);
   const orbitR = size * 0.42;
+  // The orbit/satellite/glow are continuous infinite loops — genuinely
+  // decorative motion rather than a state entrance, so reduced-motion turns
+  // them off outright instead of just speeding them up.
+  const reduceMotion = useReducedMotion();
 
   return (
     <div
@@ -63,8 +67,8 @@ export function DemoNode({ status, pulseKey, size = 176 }: DemoNodeProps) {
         className="absolute rounded-full"
         style={{ width: size, height: size, background: meta.glow, filter: `blur(${Math.round(size * 0.17)}px)` }}
         initial={{ opacity: 0.95 }}
-        animate={{ opacity: [0.95, 0.55, 0.78] }}
-        transition={{ duration: 2.2, ease: 'easeInOut', repeat: Infinity, repeatType: 'mirror' }}
+        animate={{ opacity: reduceMotion ? 0.78 : [0.95, 0.55, 0.78] }}
+        transition={{ duration: 2.2, ease: 'easeInOut', repeat: reduceMotion ? 0 : Infinity, repeatType: 'mirror' }}
       />
 
       {/* slow dashed orbit — continuous, never remounts */}
@@ -74,8 +78,8 @@ export function DemoNode({ status, pulseKey, size = 176 }: DemoNodeProps) {
         width={size}
         height={size}
         viewBox={`0 0 ${size} ${size}`}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 34, repeat: Infinity, ease: 'linear' }}
+        animate={{ rotate: reduceMotion ? 0 : 360 }}
+        transition={{ duration: 34, repeat: reduceMotion ? 0 : Infinity, ease: 'linear' }}
       >
         <circle
           cx={size / 2}
@@ -95,8 +99,8 @@ export function DemoNode({ status, pulseKey, size = 176 }: DemoNodeProps) {
         aria-hidden
         className="absolute"
         style={{ width: size, height: size }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 16, repeat: Infinity, ease: 'linear' }}
+        animate={{ rotate: reduceMotion ? 0 : 360 }}
+        transition={{ duration: 16, repeat: reduceMotion ? 0 : Infinity, ease: 'linear' }}
       >
         <span
           className="absolute rounded-full"
@@ -121,7 +125,7 @@ export function DemoNode({ status, pulseKey, size = 176 }: DemoNodeProps) {
         style={{ width: core, height: core, border: `2px solid ${meta.color}` }}
         initial={{ opacity: 0.9, scale: 0.6 }}
         animate={{ opacity: 0, scale: 2.1 }}
-        transition={{ duration: 1, ease: 'easeOut' }}
+        transition={{ duration: reduceMotion ? 0 : 1, ease: 'easeOut' }}
       />
 
       {/* core sphere */}
@@ -137,7 +141,7 @@ export function DemoNode({ status, pulseKey, size = 176 }: DemoNodeProps) {
         }}
         initial={{ scale: 0.84 }}
         animate={{ scale: 1 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: reduceMotion ? 0 : 0.5, ease: [0.22, 1, 0.36, 1] }}
       />
     </div>
   );

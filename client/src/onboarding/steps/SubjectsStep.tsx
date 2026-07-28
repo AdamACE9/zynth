@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { FOCUS_RING, MAX_SUBJECTS, type SubjectGroup } from '../constants';
 
 export interface SubjectsStepProps {
@@ -7,6 +7,19 @@ export interface SubjectsStepProps {
   onToggle: (subject: string) => void;
   otherText: string;
   onOtherTextChange: (text: string) => void;
+}
+
+/** Cap on how many chips get a staggered delay — past this the entrance is
+ * simultaneous rather than making the student wait out a long cascade. */
+const MAX_STAGGER = 14;
+
+/** Sets --mx/--my directly on the element from the pointer position, no
+ * re-render — the cursor-tracked glow reads these in onboarding.css
+ * (`.ob-chip::after`), same technique as `.card::after` in site.css. */
+function trackGlow(event: MouseEvent<HTMLButtonElement>) {
+  const rect = event.currentTarget.getBoundingClientRect();
+  event.currentTarget.style.setProperty('--mx', `${event.clientX - rect.left}px`);
+  event.currentTarget.style.setProperty('--my', `${event.clientY - rect.top}px`);
 }
 
 /** Step — multi-select subject chips, grouped by discipline, capped so the graph (and the
@@ -23,6 +36,20 @@ export function SubjectsStep({ groups, selected, onToggle, otherText, onOtherTex
   const otherCounted = otherOpen && otherText.trim().length > 0 ? 1 : 0;
   const count = selected.length + otherCounted;
   const atCap = count >= MAX_SUBJECTS;
+
+  // Flattened index across every group, so the stagger reads as one cascade
+  // down the whole library rather than restarting per group.
+  const flatIndex = useMemo(() => {
+    const order = new Map<string, number>();
+    let i = 0;
+    for (const g of groups) {
+      for (const subject of g.subjects) {
+        order.set(subject, i);
+        i += 1;
+      }
+    }
+    return order;
+  }, [groups]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -46,13 +73,12 @@ export function SubjectsStep({ groups, selected, onToggle, otherText, onOtherTex
         <div className="mt-4 flex flex-col gap-5">
           {groups.map((group) => (
             <div key={group.label}>
-              <span className="ob-micro" style={{ letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: 10 }}>
-                {group.label}
-              </span>
+              <span className="ob-mono">{group.label}</span>
               <div className="mt-2.5 flex flex-wrap gap-2" role="group" aria-label={group.label}>
                 {group.subjects.map((subject) => {
                   const isSelected = selected.includes(subject);
                   const disabled = !isSelected && atCap;
+                  const i = Math.min(flatIndex.get(subject) ?? 0, MAX_STAGGER);
                   return (
                     <button
                       key={subject}
@@ -60,8 +86,9 @@ export function SubjectsStep({ groups, selected, onToggle, otherText, onOtherTex
                       aria-pressed={isSelected}
                       disabled={disabled}
                       onClick={() => onToggle(subject)}
+                      onMouseMove={trackGlow}
                       className={`ob-chip ${FOCUS_RING}`}
-                      style={disabled ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
+                      style={{ ['--i' as string]: i }}
                     >
                       {subject}
                     </button>
@@ -72,17 +99,16 @@ export function SubjectsStep({ groups, selected, onToggle, otherText, onOtherTex
           ))}
 
           <div>
-            <span className="ob-micro" style={{ letterSpacing: '0.12em', textTransform: 'uppercase', fontSize: 10 }}>
-              Something else
-            </span>
+            <span className="ob-mono">Something else</span>
             <div className="mt-2.5 flex flex-wrap gap-2">
               <button
                 type="button"
                 aria-pressed={otherOpen}
                 disabled={!otherOpen && atCap}
                 onClick={() => setOtherOpen((v) => !v)}
+                onMouseMove={trackGlow}
                 className={`ob-chip ${FOCUS_RING}`}
-                style={!otherOpen && atCap ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
+                style={{ ['--i' as string]: Math.min(flatIndex.size, MAX_STAGGER) }}
               >
                 + Other
               </button>

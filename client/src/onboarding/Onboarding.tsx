@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import type { OnboardingDraft, OnboardingMode, OnboardingPrefs } from '../lib/appView';
 import { clearDraft, readDraft, writeDraft } from '../lib/appView';
 import { activateWorkspace, createWorkspace, type Workspace, type WorkspaceDepth } from '../lib/api';
@@ -133,8 +133,14 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
   const [buildActiveIndex, setBuildActiveIndex] = useState(0);
   const [buildError, setBuildError] = useState<string | null>(null);
   const [builtWorkspace, setBuiltWorkspace] = useState<Workspace | null>(null);
+  /** Wall-clock time the real build took, for the build log's closing line —
+   * genuine telemetry rather than an invented number, in keeping with "colour
+   * is evidence." */
+  const [buildElapsedMs, setBuildElapsedMs] = useState<number | null>(null);
   const buildStartedRef = useRef(false);
   const buildTimerRef = useRef<number | null>(null);
+  const buildStartedAtRef = useRef(0);
+  const shouldReduceMotion = useReducedMotion();
 
   // Always safe: stepIndex is clamped to [0, steps.length - 1] everywhere below.
   const step = steps[stepIndex]!;
@@ -195,6 +201,8 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
     setBuildPhase('building');
     setBuildError(null);
     setBuildActiveIndex(0);
+    setBuildElapsedMs(null);
+    buildStartedAtRef.current = performance.now();
 
     if (buildTimerRef.current) window.clearInterval(buildTimerRef.current);
     const subjectCount = allSubjects.length;
@@ -230,6 +238,7 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
         if (buildTimerRef.current) window.clearInterval(buildTimerRef.current);
         setBuildActiveIndex(subjectCount);
         setBuiltWorkspace(ws);
+        setBuildElapsedMs(performance.now() - buildStartedAtRef.current);
         setBuildPhase('done');
       } catch (err) {
         if (cancelled) return;
@@ -328,6 +337,11 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
       : 'Continue';
   const nextDisabled = onBuildStep && buildPhase === 'building';
 
+  // The last step's zero-padded label ("06", "04") doubles as the total for
+  // the mono "01 / 06" progress readout — no separate padding logic needed.
+  const totalN = steps[steps.length - 1]?.n ?? String(steps.length).padStart(2, '0');
+  const progressPct = ((stepIndex + 1) / steps.length) * 100;
+
   return (
     <div className="zynth-ob flex h-full w-full items-center justify-center p-3 sm:p-6">
       <div className="ob-shell">
@@ -342,7 +356,25 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
             </p>
           </div>
 
-          <nav className="mt-8 flex flex-1 flex-col gap-0.5" aria-label="Setup steps">
+          {/* Precise sense of place: a mono count plus one hairline that fills —
+              never a chunky bar. The step list below is the menu; this is the ruler. */}
+          <div
+            className="mt-7 shrink-0"
+            role="progressbar"
+            aria-valuenow={stepIndex + 1}
+            aria-valuemin={1}
+            aria-valuemax={steps.length}
+            aria-label={`Setup progress: ${step.title}`}
+          >
+            <span className="ob-mono">
+              {step.n} / {totalN}
+            </span>
+            <div className="ob-progress-rule mt-2.5">
+              <span style={{ width: `${progressPct}%` }} />
+            </div>
+          </div>
+
+          <nav className="mt-6 flex flex-1 flex-col gap-0.5" aria-label="Setup steps">
             {steps.map((s, i) => {
               const locked = onBuildStep && buildPhase === 'building';
               const reachable = i <= furthest && !locked;
@@ -387,25 +419,25 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
           {/* Compact numbered header — replaces the rail under 1024px. */}
           <header className="ob-head-m shrink-0 lg:hidden">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-baseline gap-2.5">
-                <span className="ob-num">{step.n}</span>
-                <span className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
-                  {step.title}
-                </span>
-              </div>
+              <span className="truncate text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {step.title}
+              </span>
               {skipButton('shrink-0')}
             </div>
             <div
-              className="mt-3 flex items-center gap-1.5"
+              className="ob-progress-head mt-3"
               role="progressbar"
               aria-valuenow={stepIndex + 1}
               aria-valuemin={1}
               aria-valuemax={steps.length}
               aria-label={`Setup progress: ${step.title}`}
             >
-              {steps.map((s, i) => (
-                <span key={s.id} className="ob-tick" data-on={i <= stepIndex} />
-              ))}
+              <span className="ob-mono">
+                {step.n} / {totalN}
+              </span>
+            </div>
+            <div className="ob-progress-rule mt-2">
+              <span style={{ width: `${progressPct}%` }} />
             </div>
           </header>
 
@@ -418,12 +450,17 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
                 animation could stall, leaving the outgoing step mounted forever so
                 the flow silently refused to advance (header moved to step 2 while
                 the body still showed step 1). Re-keying on step.id remounts the
-                panel and plays an enter-only transition — nothing to get stuck on. */}
+                panel and plays an enter-only transition — nothing to get stuck on.
+                Travel distance (24px) and duration (--t-base) match the reveal
+                rule in index.css/site.css; direction-aware via `direction`, set
+                wherever stepIndex changes. `initial={false}` under reduced motion
+                means the panel is simply present at its resting state — no motion
+                to reduce. */}
             <motion.div
               key={step.id}
-              initial={{ opacity: 0, x: direction >= 0 ? 18 : -18 }}
+              initial={shouldReduceMotion ? false : { opacity: 0, x: direction >= 0 ? 24 : -24 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.32, ease: [0.22, 1, 0.36, 1] }}
             >
               {step.id === 'welcome' && <WelcomeStep name={name} onNameChange={setName} />}
               {step.id === 'subjects' && (
@@ -456,6 +493,7 @@ export function Onboarding({ mode, namePrefill, onComplete, onSkip, onBackToSite
                   error={buildError}
                   workspaceName={workspaceName}
                   name={name.trim()}
+                  elapsedMs={buildElapsedMs}
                 />
               )}
             </motion.div>

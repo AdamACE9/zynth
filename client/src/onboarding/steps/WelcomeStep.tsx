@@ -46,7 +46,9 @@ export function WelcomeStep({ name, onNameChange }: WelcomeStepProps) {
           className={`ob-field mt-3 ${FOCUS_RING}`}
           style={{ maxWidth: 420 }}
         />
-        <p className="ob-micro mt-3">No account. No email. Nothing leaves this device.</p>
+        <p className="ob-duo mt-3">
+          <b>No account. No email.</b> Nothing leaves this device.
+        </p>
       </div>
     </div>
   );

@@ -117,9 +117,9 @@
   line-height: 1.3;
   text-align: left;
   transition:
-    color 150ms ease-out,
-    background-color 150ms ease-out,
-    border-color 150ms ease-out;
+    color var(--t-micro) var(--ease-micro),
+    background-color var(--t-micro) var(--ease-micro),
+    border-color var(--t-micro) var(--ease-micro);
 }
 
 .zynth-ob .ob-step:not(:disabled) {
@@ -144,9 +144,12 @@
 
 .zynth-ob .ob-step-n {
   flex-shrink: 0;
-  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  /* Mono, not display — step numbers are a data readout (signature device #2
+     in DESIGN-LANGUAGE.md), same family as build-log lines and the progress
+     count, so the whole flow reads as one instrument. */
+  font-family: var(--f-mono);
   font-size: 10.5px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.16em;
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
@@ -217,9 +220,9 @@
 }
 
 .zynth-ob .ob-num {
-  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--f-mono);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.16em;
   font-variant-numeric: tabular-nums;
   color: var(--accent-cyan);
@@ -229,6 +232,53 @@
   height: 1px;
   border: 0;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0));
+}
+
+/* Mono evidence label — section numbers, figure captions, data readouts,
+   counts. The one signature device that makes this read as an instrument
+   rather than a form. Mirrors .mono in site.css exactly. */
+.zynth-ob .ob-mono {
+  font-family: var(--f-mono);
+  font-size: 0.688rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The duo line — a bright claim, then its qualification in a lower register,
+   in one breath. */
+.zynth-ob .ob-duo {
+  font-size: 0.975rem;
+  line-height: 1.62;
+  color: var(--text-muted);
+  margin: 0;
+}
+.zynth-ob .ob-duo b {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* -- Progress: mono count + a single hairline that fills. No chunky bars. -- */
+
+.zynth-ob .ob-progress-rule {
+  position: relative;
+  height: 1px;
+  width: 100%;
+  background: var(--border-glass);
+  overflow: hidden;
+  border-radius: 1px;
+}
+
+.zynth-ob .ob-progress-rule > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-violet));
+  box-shadow: 0 0 8px rgba(82, 229, 232, 0.55);
+  transition: width var(--t-base) var(--ease-out);
 }
 
 /* -- Step column ------------------------------------------------------------- */
@@ -274,9 +324,9 @@
   line-height: 1.4;
   outline: none;
   transition:
-    border-color 150ms ease-out,
-    background-color 150ms ease-out,
-    box-shadow 150ms ease-out;
+    border-color var(--t-micro) var(--ease-micro),
+    background-color var(--t-micro) var(--ease-micro),
+    box-shadow var(--t-micro) var(--ease-micro);
 }
 
 .zynth-ob .ob-field::placeholder {
@@ -290,6 +340,8 @@
 }
 
 .zynth-ob .ob-chip {
+  position: relative;
+  overflow: hidden;
   border: 1px solid var(--border-glass);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.03);
@@ -297,11 +349,48 @@
   font-size: 13.5px;
   line-height: 1.2;
   color: var(--text-secondary);
+  /* Staggered entrance — index arrives via the --i custom property set inline
+     per chip. Capped in JS so a 28-chip library doesn't take 2s to appear.
+     `backwards` (not `both`): holding the *pre-start* state is all that's
+     needed to avoid a flash-of-full-opacity before the delay elapses. Holding
+     the *post-end* state too (`both`) would permanently pin opacity:1 above
+     the cascade and defeat the :disabled dimming below. */
+  opacity: 0;
+  animation: ob-chip-in var(--t-base) var(--ease-out) backwards;
+  animation-delay: calc(var(--i, 0) * 55ms);
   transition:
-    color 150ms ease-out,
-    border-color 150ms ease-out,
-    background-color 150ms ease-out,
-    box-shadow 150ms ease-out;
+    color var(--t-micro) var(--ease-micro),
+    border-color var(--t-micro) var(--ease-micro),
+    background-color var(--t-micro) var(--ease-micro),
+    box-shadow var(--t-micro) var(--ease-micro);
+}
+
+@keyframes ob-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Cursor-tracked glow — the chip lights in cyan following the pointer, set
+   from JS via --mx/--my (same technique as .card::after in site.css). */
+.zynth-ob .ob-chip::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  background: radial-gradient(120px circle at var(--mx, 50%) var(--my, 50%), rgba(82, 229, 232, 0.28), transparent 70%);
+  transition: opacity var(--t-micro) var(--ease-micro);
+}
+
+.zynth-ob .ob-chip:hover::after {
+  opacity: 1;
 }
 
 .zynth-ob .ob-chip:hover {
@@ -315,6 +404,13 @@
   border-color: rgba(82, 229, 232, 0.7);
   background: rgba(82, 229, 232, 0.13);
   box-shadow: 0 0 22px rgba(82, 229, 232, 0.14);
+}
+
+/* Capped-out chips (subject picker at MAX_SUBJECTS) — dimmed via the normal
+   cascade so it isn't fought by the entrance animation above. */
+.zynth-ob .ob-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .zynth-ob .ob-chip-sm {
@@ -336,9 +432,9 @@
   padding: 13px 24px;
   box-shadow: 0 12px 34px rgba(82, 229, 232, 0.2);
   transition:
-    filter 150ms ease-out,
-    box-shadow 150ms ease-out,
-    transform 80ms ease-out;
+    filter var(--t-micro) var(--ease-micro),
+    box-shadow var(--t-micro) var(--ease-micro),
+    transform 80ms var(--ease-micro);
 }
 
 .zynth-ob .ob-cta:hover {
@@ -358,9 +454,9 @@
   font-size: 14px;
   padding: 12px 18px;
   transition:
-    color 150ms ease-out,
-    border-color 150ms ease-out,
-    background-color 150ms ease-out;
+    color var(--t-micro) var(--ease-micro),
+    border-color var(--t-micro) var(--ease-micro),
+    background-color var(--t-micro) var(--ease-micro);
 }
 
 .zynth-ob .ob-ghost:hover {
@@ -372,7 +468,7 @@
 .zynth-ob .ob-quiet {
   color: var(--text-muted);
   font-size: 12.5px;
-  transition: color 150ms ease-out;
+  transition: color var(--t-micro) var(--ease-micro);
 }
 
 .zynth-ob .ob-quiet:hover {
@@ -390,8 +486,8 @@
   border-radius: 11px;
   opacity: 0.42;
   transition:
-    opacity 260ms ease-out,
-    background-color 260ms ease-out;
+    opacity var(--t-base) var(--ease-out),
+    background-color var(--t-base) var(--ease-out);
 }
 
 .zynth-ob .ob-stage[data-active='true'] {
@@ -424,10 +520,10 @@
   font-weight: 600;
   padding: 11px 17px;
   transition:
-    color 160ms ease-out,
-    background-color 160ms ease-out,
-    border-color 160ms ease-out,
-    opacity 160ms ease-out;
+    color var(--t-micro) var(--ease-micro),
+    background-color var(--t-micro) var(--ease-micro),
+    border-color var(--t-micro) var(--ease-micro),
+    opacity var(--t-micro) var(--ease-micro);
 }
 
 .zynth-ob .ob-demo-btn:disabled {
@@ -457,24 +553,123 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .zynth-ob .ob-demo-btn[data-live='true'] {
-    animation: none;
-    box-shadow: 0 0 0 3px rgba(82, 229, 232, 0.22);
+/* -- Build step: a real build log, not a spinner -------------------------- */
+
+.zynth-ob .ob-buildlog {
+  border: 1px solid var(--border-glass);
+  border-radius: 14px;
+  background: rgba(2, 3, 8, 0.55);
+  padding: 6px 4px;
+}
+
+.zynth-ob .ob-logline {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 14px;
+  font-family: var(--f-mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  opacity: 0.5;
+  transition:
+    opacity var(--t-base) var(--ease-out),
+    color var(--t-base) var(--ease-out);
+}
+
+.zynth-ob .ob-logline[data-state='active'],
+.zynth-ob .ob-logline[data-state='done'] {
+  opacity: 1;
+}
+
+.zynth-ob .ob-logline-tag {
+  flex-shrink: 0;
+  min-width: 2.6em;
+  color: var(--text-muted);
+}
+
+.zynth-ob .ob-logline[data-state='active'] .ob-logline-tag {
+  color: var(--accent-cyan);
+}
+
+.zynth-ob .ob-logline[data-state='done'] .ob-logline-tag {
+  color: var(--accent-violet);
+}
+
+.zynth-ob .ob-logline-name {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.zynth-ob .ob-logline[data-state='active'] .ob-logline-name,
+.zynth-ob .ob-logline[data-state='done'] .ob-logline-name {
+  color: var(--text-primary);
+}
+
+/* Leader dots — the classic build-log fill between a name and its status,
+   drawn as a repeating gradient so it never needs measuring. */
+.zynth-ob .ob-logline-dots {
+  flex: 1 1 auto;
+  min-width: 12px;
+  height: 1em;
+  background-image: radial-gradient(circle, currentColor 1px, transparent 1px);
+  background-size: 5px 100%;
+  background-position: bottom;
+  color: var(--border-glass-hover);
+  opacity: 0.6;
+}
+
+.zynth-ob .ob-logline-status {
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* Blinking terminal caret — same technique as .caret in site.css. */
+.zynth-ob .ob-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1em;
+  margin-left: 3px;
+  vertical-align: text-bottom;
+  background: var(--accent-cyan);
+  animation: ob-blink 1.05s steps(2, start) infinite;
+}
+
+@keyframes ob-blink {
+  to {
+    opacity: 0;
   }
 }
 
-/* -- Progress (mobile header) -------------------------------------------------- */
+/* -- Progress: mono count + a hairline rule (mobile header) ---------------- */
 
-.zynth-ob .ob-tick {
-  height: 3px;
-  flex: 1 1 0;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  transition: background-color 320ms ease-out;
+.zynth-ob .ob-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.zynth-ob .ob-tick[data-on='true'] {
-  background: var(--accent-cyan);
-  box-shadow: 0 0 10px rgba(82, 229, 232, 0.45);
+/* ---------------------------------------------------------------------------
+   Reduced motion — kill transitions and animations, show everything as
+   settled. Framer/motion-driven pieces (step cross-fade, the demo node's
+   continuous spin, AnimatePresence captions) are gated in JS via
+   useReducedMotion() instead, since this media query only reaches CSS.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .zynth-ob *,
+  .zynth-ob *::before,
+  .zynth-ob *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .zynth-ob .ob-chip {
+    opacity: 1;
+  }
+
+  .zynth-ob .ob-demo-btn[data-live='true'] {
+    box-shadow: 0 0 0 3px rgba(82, 229, 232, 0.22);
+  }
 }

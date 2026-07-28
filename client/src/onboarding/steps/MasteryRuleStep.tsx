@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { DEMO_STATUS_META, DemoNode, type DemoStatus } from '../DemoNode';
 import { FOCUS_RING } from '../constants';
 
@@ -38,6 +38,7 @@ export function MasteryRuleStep() {
   const [status, setStatus] = useState<DemoStatus>('red');
   const [action, setAction] = useState<DemoAction>('none');
   const [pulse, setPulse] = useState(0);
+  const reduceMotion = useReducedMotion();
 
   const transition = useCallback((next: DemoStatus, act: DemoAction) => {
     setStatus(next);
@@ -57,8 +58,8 @@ export function MasteryRuleStep() {
           A node&apos;s colour is <em style={{ color: 'var(--text-primary)', fontStyle: 'normal', fontWeight: 600 }}>evidence</em>,
           never exposure. Drive this one yourself.
         </p>
-        <p className="ob-body mt-3" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-          Your graph starts entirely red. Nothing is green until you prove it.
+        <p className="ob-duo mt-3">
+          <b>Your graph starts entirely red.</b> Nothing is green until you prove it.
         </p>
       </header>
 
@@ -70,9 +71,7 @@ export function MasteryRuleStep() {
             <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
               Chain Rule
             </span>
-            <span className="ob-micro" style={{ letterSpacing: '0.14em', textTransform: 'uppercase', fontSize: 10 }}>
-              Calculus
-            </span>
+            <span className="ob-mono">Calculus</span>
           </div>
         </div>
 
@@ -98,23 +97,27 @@ export function MasteryRuleStep() {
         </ul>
       </div>
 
-      {/* Live commentary — fixed min-height so the layout never jumps. */}
+      {/* Live commentary — fixed min-height so the layout never jumps.
+          Deliberately NOT AnimatePresence mode="wait": that pattern already
+          caused a real stall elsewhere in this flow (see the step-transition
+          comment in Onboarding.tsx and commit bd0ec6b) — if the tab loses
+          visibility mid-exit, rAF-driven exit animations never resolve and
+          the old caption is stuck on screen forever. Re-keying on `action`
+          remounts the paragraph and plays an enter-only transition instead,
+          which has nothing to get stuck on. */}
       <div style={{ minHeight: 66 }} aria-live="polite">
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={action}
-            initial={{ opacity: 0, y: 5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.2 }}
-            className="ob-body"
-          >
-            <span className="font-semibold" style={{ color: meta.color }}>
-              {caption.lead}{' '}
-            </span>
-            {caption.body}
-          </motion.p>
-        </AnimatePresence>
+        <motion.p
+          key={action}
+          initial={reduceMotion ? false : { opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.2 }}
+          className="ob-body"
+        >
+          <span className="font-semibold" style={{ color: meta.color }}>
+            {caption.lead}{' '}
+          </span>
+          {caption.body}
+        </motion.p>
       </div>
 
       <div className="flex flex-col gap-3">
