@@ -1,9 +1,8 @@
 import { Router } from 'express';
 import { getActiveStudentId } from '../config';
-import { nodesRepo } from '../db/repositories';
+import { mistakeRecordsRepo, nodesRepo } from '../db/repositories';
 import { engageNode } from '../services/statusService';
-import { runWarRoom } from '../agents/orchestrator';
-import { runWarRoomStream } from '../agents/warRoomStream';
+import { generateIntuitionSpec } from '../services/intuitionService';
 
 export const nodesRouter = Router();
 
@@ -20,7 +19,12 @@ nodesRouter.get('/nodes/:id', (req, res) => {
   res.json(node);
 });
 
-/** Demo trigger: shows red -> amber live without going through the full War Room. */
+/**
+ * red → amber. The sole engagement endpoint, used by Intuition (once the
+ * student commits to a prediction) and by Explain. It delegates to
+ * statusService.engageNode, which stays the only code path allowed to write
+ * Node.status — this handler deliberately contains no status logic of its own.
+ */
 nodesRouter.post('/nodes/:id/engage', (req, res) => {
   const node = nodesRepo.getById(req.params.id);
   if (!node) {
@@ -31,47 +35,38 @@ nodesRouter.post('/nodes/:id/engage', (req, res) => {
   res.json(updated);
 });
 
-nodesRouter.post('/nodes/:id/war-room', async (req, res) => {
-  const node = nodesRepo.getById(req.params.id);
-  if (!node) {
-    res.status(404).json({ error: `No node with id ${req.params.id}` });
-    return;
-  }
-  try {
-    const session = await runWarRoom(req.params.id);
-    res.json(session);
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[routes/nodes] war-room failed:', err);
-    res.status(500).json({ error: 'War Room failed to run' });
-  }
-});
-
 /**
- * Kicks off the streaming War Room debate for a node. Contract:
- *   POST /api/nodes/:id/war-room/stream
- *   body: {} (no body needed — node id is in the path)
- *   200:  { session_id: string }
- * Runs the same 5-persona debate as runWarRoom() above, but emits progress
- * live via the 'warroom:turn' socket event (phase: start/token/done per
- * persona turn) instead of blocking until the whole transcript is ready, then
- * emits 'warroom:resolved' once the debate converges and engageNode() has
- * run. This handler returns as soon as the session_id exists — it does NOT
- * await the debate itself, which continues in the background. The client
- * follows along via getSocket() rather than this POST's body.
+ * The Intuition spec for a node — the visual, interactive understanding step.
+ *
+ *   GET /api/nodes/:id/intuition
+ *   200: IntuitionSpec
+ *
+ * Synchronous by design. The module this replaced streamed five AI personas
+ * over a socket, and the waiting was itself a large part of why it felt like a
+ * chore; here the student gets one validated spec and starts dragging.
+ *
+ * Any recorded mistakes on this node are passed to the generator so the
+ * prediction targets the misunderstanding the student has actually
+ * demonstrated. That personalisation is the thing a textbook cannot do.
+ *
+ * This never 500s on a generation failure — intuitionService falls back to a
+ * deterministic spec, so the screen always renders.
  */
-nodesRouter.post('/nodes/:id/war-room/stream', (req, res) => {
+nodesRouter.get('/nodes/:id/intuition', async (req, res) => {
   const node = nodesRepo.getById(req.params.id);
   if (!node) {
     res.status(404).json({ error: `No node with id ${req.params.id}` });
     return;
   }
+
+  let mistakes: Awaited<ReturnType<typeof mistakeRecordsRepo.getByNode>> = [];
   try {
-    const { session_id } = runWarRoomStream(req.params.id);
-    res.json({ session_id });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('[routes/nodes] war-room/stream failed to start:', err);
-    res.status(500).json({ error: 'War Room stream failed to start' });
+    mistakes = mistakeRecordsRepo.getByNode(req.params.id);
+  } catch {
+    // Personalisation is a bonus, not a requirement — a read failure here must
+    // not cost the student the visual.
   }
+
+  const spec = await generateIntuitionSpec(node, mistakes);
+  res.json(spec);
 });

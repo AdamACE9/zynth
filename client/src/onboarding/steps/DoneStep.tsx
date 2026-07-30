@@ -18,7 +18,7 @@ const LOOP_STEPS: { n: string; title: string; body: ReactNode; dot: string }[] =
     title: 'Engage it',
     body: (
       <>
-        Open <span style={STRONG}>War Room</span> or <span style={STRONG}>Explain</span>. That&apos;s red to amber.
+        Open <span style={STRONG}>Intuition</span> or <span style={STRONG}>Explain</span>. That&apos;s red to amber.
       </>
     ),
     dot: 'var(--status-amber)',

@@ -3,14 +3,14 @@ import { motion, useReducedMotion } from 'motion/react';
 import { DEMO_STATUS_META, DemoNode, type DemoStatus } from '../DemoNode';
 import { FOCUS_RING } from '../constants';
 
-type DemoAction = 'none' | 'warroom' | 'quiz' | 'retest';
+type DemoAction = 'none' | 'intuition' | 'quiz' | 'retest';
 
 const CAPTIONS: Record<DemoAction, { lead: string; body: string }> = {
   none: {
     lead: 'Nothing proven yet.',
     body: "Every concept starts here. Seeing it in a lecture doesn't move it — only evidence does.",
   },
-  warroom: {
+  intuition: {
     lead: 'Engaged.',
     body: 'Five AI minds argued it out with you. Real work happened, but nothing has been proven yet.',
   },
@@ -127,10 +127,10 @@ export function MasteryRuleStep() {
             type="button"
             disabled={status !== 'red'}
             data-live={status === 'red'}
-            onClick={() => transition('amber', 'warroom')}
+            onClick={() => transition('amber', 'intuition')}
             className={`ob-demo-btn ${FOCUS_RING}`}
           >
-            Open War Room
+            Build intuition
           </button>
           <button
             type="button"

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, lazy, Suspense } from 'react';
 import { Convergence } from './Convergence';
+import { Predict } from './Predict';
 import './site.css';
 
 /* three.js + r3f + postprocessing is by far the heaviest thing on this page,
@@ -11,7 +12,6 @@ const Constellation = lazy(() =>
   import('./Constellation').then((m) => ({ default: m.Constellation })),
 );
 const ProofOrb = lazy(() => import('./Orbs').then((m) => ({ default: m.ProofOrb })));
-const PersonaRing = lazy(() => import('./Orbs').then((m) => ({ default: m.PersonaRing })));
 
 export interface LandingProps {
   /** "Go to Zynth" — straight to the graph, or through setup on a first visit. */
@@ -185,18 +185,11 @@ const FAQS: [string, string][] = [
   ],
   [
     'Which models run it?',
-    'Google Gemini runs the War Room debates, question generation, the Autopsy clustering and the tutor. Groq grades written answers.',
+    'Google Gemini designs the Intuition visuals, writes the questions, clusters the Autopsy findings and runs the tutor. Groq grades written answers.',
   ],
   ['Who built this?', 'Adam Ahmed, solo, at thirteen — as a hackathon build. The whole thing is open source.'],
 ];
 
-const TURNS: [string, string][] = [
-  ['The Analogist', 'Ok so the chain rule is basically a recipe step — do it out of order and everything after it quietly breaks.'],
-  ['The Purist', 'Useful, but imprecise. The derivative of a composition is the outer derivative evaluated at the inner function, times the inner derivative.'],
-  ['Real World', 'Fair point Purist — but this is exactly the step that bites people later in physics.'],
-  ['The Skeptic', 'Hang on. Does that still hold when the inner function is itself a composition?'],
-  ['Synthesis', 'It does, and that is the version to keep: peel one layer at a time, and never drop the inner derivative.'],
-];
 
 const MODULES: {
   title: string;
@@ -244,7 +237,7 @@ const MODULES: {
 
 const STATES: [string, string, string][] = [
   ['red', 'Red', 'Untouched, or just failed a retest. Re-reading the chapter nine times does not move it.'],
-  ['amber', 'Amber', 'Engaged. Unproven. You took it to the War Room or sat with the tutor. Zynth records that you met the idea — not that you can use it.'],
+  ['amber', 'Amber', 'Engaged. Unproven. You built the intuition or sat with the tutor. Zynth records that you met the idea — not that you can use it.'],
   ['green', 'Green', 'Proven. You passed a quiz on it at seventy per cent or better. This is the only route here.'],
 ];
 
@@ -274,7 +267,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               </button>
               <nav className="nav-links">
                 <a href="#rule">The rule</a>
-                <a href="#warroom">War Room</a>
+                <a href="#intuition">Intuition</a>
                 <a href="#autopsy">Autopsy</a>
                 <a href="#modules">Modules</a>
                 <a href="#faq">FAQ</a>
@@ -366,7 +359,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               <div className="ladder-row">
                 <span className="dot dot-red" /> red <span className="arrow">→</span>
                 <span className="dot dot-amber" /> amber
-                <em>engaged via War Room or Explain</em>
+                <em>engaged via Intuition or Explain</em>
               </div>
               <div className="ladder-row">
                 <span className="dot dot-amber" /> amber <span className="arrow">→</span>
@@ -396,27 +389,22 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
           </div>
         </section>
 
-        {/* ---- 02 war room ------------------------------------------------ */}
-        <section className="band" id="warroom">
+        {/* ---- 02 intuition ----------------------------------------------- */}
+        <section className="band" id="intuition">
           <div className="spine" />
           <div className="wrap">
-            <Head n="02" kicker="The War Room">Five minds. One stuck concept.</Head>
+            <Head n="02" kicker="Intuition">Drag it. Predict it. Then be shown.</Head>
 
             <p className="t-body" style={{ marginTop: 26 }} data-reveal>
-              Open a weak node and five AI personas argue it out in front of you — an analogy, a
-              rigorous definition, a real-world use, and a skeptic trying to break all three. They
-              answer each other, not you.
+              Open a weak node and you get one thing to move and one question to answer — not an
+              essay. Change the launch angle and watch the arc respond. Then commit to a prediction
+              before anything is revealed, because a guess you have actually staked something on is
+              the only kind you remember being wrong about.
             </p>
-
-            <div style={{ marginTop: 20 }} data-reveal>
-              <Suspense fallback={null}>
-                <PersonaRing />
-              </Suspense>
-            </div>
 
             <div
               className="panel panel-flush"
-              style={{ marginTop: 56, padding: '30px clamp(22px, 4vw, 38px) 34px' }}
+              style={{ marginTop: 44, padding: '30px clamp(22px, 4vw, 38px) 34px' }}
               data-reveal
             >
               <div
@@ -426,26 +414,23 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                   borderBottom: '1px solid var(--s-line)',
                 }}
               >
-                <span className="mono">Transcript — Calculus / Chain Rule</span>
+                <span className="mono">Physics / Projectile Range — &ldquo;steeper goes further&rdquo;</span>
                 <span className="chip"><span className="dot dot-amber" />Verdict: engaged</span>
               </div>
 
-              <div className="turns" style={{ marginTop: 28 }}>
-                {TURNS.map(([who, text], i) => (
-                  <div className="turn" key={who} data-reveal style={{ ['--d' as string]: `${i * 110}ms` }}>
-                    <div className="turn-who"><i />{who}</div>
-                    <div className="turn-text">
-                      {text}
-                      {i === TURNS.length - 1 && <span className="caret" />}
-                    </div>
-                  </div>
-                ))}
+              <div style={{ marginTop: 24 }}>
+                <Predict />
               </div>
+
+              <p className="t-body" style={{ marginTop: 18, maxWidth: '58ch' }}>
+                Most students pick the steeper angle. It climbs higher and lands shorter — and seeing
+                your own curve fall short is worth more than being told that 45&deg; is optimal.
+              </p>
             </div>
 
             <p className="duo" style={{ marginTop: 22, maxWidth: '62ch' }} data-reveal>
-              <b>A debate moves the node to amber, never to green.</b> Watching four experts agree is
-              still not evidence that you can do it.
+              <b>Understanding moves the node to amber, never to green.</b> Watching the arc land
+              where you did not expect is still not evidence that you can do it.
             </p>
           </div>
         </section>
@@ -588,7 +573,7 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
                 <h4>Product</h4>
                 <ul>
                   <li><a href="#rule">The rule</a></li>
-                  <li><a href="#warroom">War Room</a></li>
+                  <li><a href="#intuition">Intuition</a></li>
                   <li><a href="#autopsy">Autopsy Board</a></li>
                   <li><a href="#modules">Modules</a></li>
                 </ul>

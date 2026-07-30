@@ -869,3 +869,50 @@ section.band {
   [data-reveal] { opacity: 1; transform: none; filter: none; }
   .site-streaks { opacity: 0.34; }
 }
+
+/* ------------------------------------------------------------------------- */
+/* Intuition figure — your prediction against what actually happens.         */
+/*                                                                          */
+/* Cyan is reality, violet-dashed is the guess. Red/amber/green mean mastery */
+/* everywhere in this product and so are deliberately absent here: a wrong   */
+/* prediction is not a red node.                                            */
+/* ------------------------------------------------------------------------- */
+
+.predict { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* 1400 comfortably exceeds either real path length, so the dash fully clears
+   the stroke at rest and the curve draws rather than fades. */
+.pr-path {
+  stroke-dasharray: 1400;
+  stroke-dashoffset: 1400;
+  transition: stroke-dashoffset 1500ms var(--ease-out);
+}
+
+/* The guess arrives first — "here is what I thought", then "here is what is". */
+.pr-guess { transition-delay: 120ms; }
+.pr-truth { transition-delay: 760ms; }
+
+.predict[data-on='true'] .pr-path { stroke-dashoffset: 0; }
+
+/* The landing marks resolve only once both arcs have finished drawing, so the
+   comparison lands as a conclusion rather than a label sitting there early. */
+.pr-marks {
+  opacity: 0;
+  transition: opacity 620ms var(--ease-out) 2100ms;
+}
+.predict[data-on='true'] .pr-marks { opacity: 1; }
+
+.pr-label {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+.pr-label[data-tone='guess'] { fill: var(--violet); }
+.pr-label[data-tone='truth'] { fill: var(--cyan); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pr-path,
+  .pr-marks {
+    transition: none;
+  }
+}

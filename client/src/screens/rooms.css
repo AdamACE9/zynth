@@ -1,6 +1,6 @@
 /* ==========================================================================
    rooms.css — the visual system for Zynth's four full-screen rooms
-   (War Room, Quiz, Explain, Autopsy Board).
+   (Intuition, Quiz, Explain, Autopsy Board).
 
    WHY THIS FILE EXISTS
    Tailwind v4 SILENTLY DROPS arbitrary values that contain a comma:
@@ -434,7 +434,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   4. War Room — roster rail + situation-room transcript.
+   4. (removed — War Room was replaced by Intuition; see the iv-* block below.)
    -------------------------------------------------------------------------- */
 
 /* Roster: horizontal filmstrip on phones, vertical rail from 1024px. */
@@ -1133,3 +1133,284 @@
 }
 
 } /* @layer components */
+
+/* ======================================================================== */
+/* Intuition — the visual, interactive understanding step.                   */
+/*                                                                          */
+/* Colour note: the reveal uses cyan for reality and violet for the          */
+/* student's prediction, never red/amber/green. Those three mean mastery     */
+/* everywhere in this product; borrowing them for right/wrong would make the */
+/* graph's own colours ambiguous. Correctness is carried by dash pattern and */
+/* the written verdict instead.                                             */
+/* ======================================================================== */
+
+.iv-frame {
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  background: rgba(4, 5, 12, 0.55);
+  padding: 6px;
+  overflow: hidden;
+}
+
+.iv-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.iv-tick text {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  fill: var(--text-muted);
+}
+
+/* The curve redraws every slider frame, so no transition here — a transition
+   would lag the drag and make the visual feel disconnected from the hand. */
+.iv-path {
+  filter: drop-shadow(0 0 6px rgba(82, 229, 232, 0.28));
+}
+
+.iv-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 14rem;
+  text-align: center;
+}
+
+/* ---- Slider ------------------------------------------------------------- */
+
+.iv-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.iv-slider-row > .rm-eyebrow {
+  min-width: 7rem;
+}
+
+.iv-slider {
+  flex: 1 1 12rem;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--accent-cyan-dim), var(--accent-violet-dim));
+  outline: none;
+  cursor: grab;
+}
+
+.iv-slider:active {
+  cursor: grabbing;
+}
+
+.iv-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-full);
+  background: var(--accent-cyan);
+  border: 2px solid #04050a;
+  box-shadow: 0 0 12px rgba(82, 229, 232, 0.5);
+  cursor: grab;
+}
+
+.iv-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--accent-cyan);
+  border: 2px solid #04050a;
+  box-shadow: 0 0 12px rgba(82, 229, 232, 0.5);
+  cursor: grab;
+}
+
+.iv-slider:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.iv-slider-value {
+  min-width: 5.5rem;
+  text-align: right;
+  color: var(--accent-cyan);
+}
+
+/* ---- Prediction options -------------------------------------------------- */
+
+.iv-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 10px;
+}
+
+.iv-option {
+  padding: 14px 16px;
+  text-align: left;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  background: var(--surface-glass-chip);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  transition:
+    border-color var(--t-micro) var(--ease-micro),
+    background-color var(--t-micro) var(--ease-micro),
+    transform 80ms var(--ease-micro);
+}
+
+.iv-option:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(82, 229, 232, 0.08);
+}
+
+.iv-option:active {
+  transform: scale(0.99);
+}
+
+.iv-option:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+/* ---- Reveal ------------------------------------------------------------- */
+
+.iv-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  background: var(--surface-glass-chip);
+}
+
+.iv-verdict-mark {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  background: var(--accent-violet-dim);
+  color: var(--accent-violet);
+}
+
+/* A correct prediction settles; it does not celebrate. One tone shift, no
+   bounce, per the product's motion rule. */
+.iv-verdict[data-right] {
+  border-color: rgba(82, 229, 232, 0.35);
+}
+
+.iv-verdict[data-right] .iv-verdict-mark {
+  background: var(--accent-cyan-dim);
+  color: var(--accent-cyan);
+}
+
+.iv-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.iv-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+}
+
+.iv-legend-item::before {
+  content: '';
+  width: 18px;
+  height: 0;
+  border-top-width: 2.5px;
+  border-top-style: solid;
+}
+
+.iv-legend-item[data-tone='truth']::before {
+  border-color: var(--accent-cyan);
+}
+
+.iv-legend-item[data-tone='prediction']::before {
+  border-top-style: dashed;
+  border-color: var(--accent-violet);
+}
+
+/* ---- Stages visual ------------------------------------------------------ */
+
+.iv-stages {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 18px 10px;
+}
+
+.iv-stage-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.iv-stage {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  background: rgba(8, 9, 18, 0.6);
+  opacity: 0.45;
+  transition:
+    opacity var(--t-base) var(--ease-inout),
+    border-color var(--t-base) var(--ease-inout),
+    background-color var(--t-base) var(--ease-inout);
+}
+
+.iv-stage[data-active] {
+  opacity: 1;
+  border-color: var(--accent-cyan);
+  background: rgba(82, 229, 232, 0.09);
+}
+
+.iv-stage[data-predicted]:not([data-active]) {
+  opacity: 0.85;
+  border-color: var(--accent-violet);
+  border-style: dashed;
+}
+
+.iv-stage-num {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.iv-stage-label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.3;
+}
+
+.iv-stage-detail {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.iv-stage-arrow {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}

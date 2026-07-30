@@ -12,7 +12,7 @@ interface NodePanelProps {
   onClose: () => void;
   patchNode: (nodeId: string, patch: Partial<Node>) => void;
   replaceNode: (node: Node) => void;
-  onOpenScreen: (type: 'warroom' | 'explain' | 'quiz', nodeId: string) => void;
+  onOpenScreen: (type: 'intuition' | 'explain' | 'quiz', nodeId: string) => void;
 }
 
 const FOCUS_RING =
@@ -37,19 +37,17 @@ const STATUS_GLOW: Record<Status, string> = {
   green: 'var(--status-green-glow)',
 };
 
-type ActionType = 'warroom' | 'explain' | 'quiz';
+type ActionType = 'intuition' | 'explain' | 'quiz';
 
 /* -- Icons: 20px stroke glyphs. Emoji read as amateur at this size. -------- */
 
-function WarRoomIcon() {
+/** A curve bending under a dragged handle — one relationship, one control. */
+function IntuitionIcon() {
   return (
     <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
-      <path
-        d="M4 10.5v3M8 6.5v11M12 3.5v17M16 7.5v9M20 10.5v3"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
+      <path d="M3 18.5C7.5 18.5 9 5.5 15 5.5c3.2 0 4.8 3.2 6 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="9.6" cy="10.2" r="2.3" fill="currentColor" />
+      <path d="M3 21.2h18" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeOpacity="0.45" />
     </svg>
   );
 }
@@ -79,7 +77,7 @@ function QuizIcon() {
 }
 
 const ACTIONS: Array<{ type: ActionType; label: string; description: string; icon: ReactNode; accent: string }> = [
-  { type: 'warroom', label: 'War Room', description: 'Five AI minds debate it live', icon: <WarRoomIcon />, accent: 'var(--accent-cyan)' },
+  { type: 'intuition', label: 'Intuition', description: 'See it move, then predict it', icon: <IntuitionIcon />, accent: 'var(--accent-cyan)' },
   { type: 'explain', label: 'Explain', description: 'A calm 1:1 tutor session', icon: <ExplainIcon />, accent: 'var(--accent-violet)' },
   { type: 'quiz', label: 'Quiz', description: 'Prove it — the only path to green', icon: <QuizIcon />, accent: '#eef1fb' },
 ];
@@ -93,8 +91,8 @@ const ACTIONS: Array<{ type: ActionType; label: string; description: string; ico
 const RECOMMENDATION: Record<Status, { lead: string; tail: string; action: ActionType }> = {
   red: {
     lead: 'Unproven.',
-    tail: 'Nothing here yet — engage it in the War Room or with Explain to move it to amber.',
-    action: 'warroom',
+    tail: 'Nothing here yet — build the intuition, or ask the tutor, to move it to amber.',
+    action: 'intuition',
   },
   amber: {
     lead: 'Engaged, not proven.',
@@ -148,7 +146,7 @@ function Fact({ label, value, color, rule = true }: { label: string; value: stri
  * one job: answer "what is this concept, how am I doing, and what do I do
  * next?" in a single glance, in that order.
  *
- * War Room / Explain / Quiz open the matching full-screen overlay via
+ * Intuition / Explain / Quiz open the matching full-screen overlay via
  * `onOpenScreen` (wired in App.tsx to the component under
  * client/src/screens/). "Mark as engaged" is real: it POSTs
  * /api/nodes/:id/engage and, if that fails because the backend isn't running,
@@ -380,7 +378,7 @@ export function NodePanel({ node, onClose, patchNode, replaceNode, onOpenScreen 
               {engaging ? 'Engaging…' : 'Mark as engaged'}
             </button>
             <p className="mt-1.5 text-center" style={{ color: 'var(--text-muted)', fontSize: 10.5, lineHeight: 1.45 }}>
-              Shortcut for red → amber without a full War Room or Explain session.
+              Shortcut for red → amber without a full Intuition or Explain session.
             </p>
           </div>
         )}

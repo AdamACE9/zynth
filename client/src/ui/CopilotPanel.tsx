@@ -167,7 +167,7 @@ export function CopilotPanel({ sessionId }: CopilotPanelProps) {
  */
 function InsightCard({ insight, onDismiss }: { insight: CopilotInsight; onDismiss: () => void }) {
   const reduceMotion = useReducedMotion();
-  const actionLabel = insight.suggested_action === 'war_room' ? 'War Room' : insight.suggested_action === 'explain' ? 'Explain' : null;
+  const actionLabel = insight.suggested_action === 'war_room' ? 'Intuition' : insight.suggested_action === 'explain' ? 'Explain' : null;
 
   return (
     <motion.div

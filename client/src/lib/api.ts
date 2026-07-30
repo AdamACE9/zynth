@@ -1,4 +1,12 @@
-import type { Edge, ExplainMessage, MistakeRecord, Node, QuizQuestion, QuizSession } from '@zynth/shared';
+import type {
+  Edge,
+  ExplainMessage,
+  IntuitionSpec,
+  MistakeRecord,
+  Node,
+  QuizQuestion,
+  QuizSession,
+} from '@zynth/shared';
 import { mockGraph } from './mockGraph';
 
 /**
@@ -210,20 +218,25 @@ export async function engageNode(nodeId: string): Promise<Node> {
 }
 
 /**
- * Kicks off a streaming War Room debate for a node. The transcript itself
- * arrives via the 'warroom:turn' / 'warroom:resolved' socket events (see
- * lib/socket.ts#getSocket) — this call just starts the session and hands
- * back its id so the caller can correlate incoming socket events.
- * NOTE: the backend endpoint is currently a 501 stub (Day 2 feature work).
+ * Fetches the Intuition spec for a node — the visual, interactive understanding
+ * step. Deliberately a single synchronous request rather than a socket stream:
+ * the module this replaced made the student watch five AI personas type, and
+ * that waiting was a large part of why it felt like a chore.
+ *
+ * The server never fails this call on a generation error — it falls back to a
+ * deterministic spec — so a rejection here means the network or the node id,
+ * not the model.
  */
-export async function startWarRoomStream(nodeId: string): Promise<{ session_id: string }> {
-  const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/war-room/stream`), {
-    method: 'POST',
-  });
+export async function fetchIntuition(nodeId: string): Promise<IntuitionSpec> {
+  const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/intuition`));
   if (!res.ok) {
-    throw new Error(`POST /api/nodes/${nodeId}/war-room/stream responded ${res.status}`);
+    throw new Error(`GET /api/nodes/${nodeId}/intuition responded ${res.status}`);
   }
-  return (await res.json()) as { session_id: string };
+  const spec = (await res.json()) as IntuitionSpec;
+  if (!spec || typeof spec.kind !== 'string' || !spec.predict) {
+    throw new Error('Malformed Intuition spec');
+  }
+  return spec;
 }
 
 /**

@@ -237,7 +237,7 @@ function OrbScene({
 }
 
 const NEXT_LABEL: Record<Status, string> = {
-  red: 'Take it to the War Room',
+  red: 'Build the intuition',
   amber: 'Pass a quiz on it',
   green: 'Fail a retest',
 };
@@ -384,37 +384,3 @@ function Ring({ active, onHover }: { active: number | null; onHover: (i: number 
 }
 
 /** Five personas circling the concept they are arguing about. */
-export function PersonaRing() {
-  const { ref, live } = useLive();
-  const reduced = useReduced();
-  const [active, setActive] = useState<number | null>(null);
-
-  useEffect(() => {
-    document.body.style.cursor = active !== null ? 'pointer' : 'auto';
-    return () => { document.body.style.cursor = 'auto'; };
-  }, [active]);
-
-  const label = active !== null ? PERSONAS[active]?.label : null;
-
-  return (
-    <div className="ring-figure" ref={ref}>
-      <Canvas
-        frameloop={live && !reduced ? 'always' : 'never'}
-        dpr={[1, 1.5]}
-        camera={{ position: [0, 0, 5.4], fov: 40 }}
-        gl={{ antialias: true, alpha: true }}
-        style={{ background: 'transparent' }}
-      >
-        <ambientLight intensity={0.3} />
-        <directionalLight position={[2.5, 3, 4]} intensity={2.2} color="#ffffff" />
-        <pointLight position={[3, 2, 4]} intensity={9} color="#9b7bff" distance={18} />
-        <pointLight position={[-4, -2, 3]} intensity={8} color="#52e5e8" distance={18} />
-        <Ring active={active} onHover={setActive} />
-      </Canvas>
-
-      <div className="ring-readout" data-on={!!label}>
-        {label ?? 'Five minds'}
-      </div>
-    </div>
-  );
-}

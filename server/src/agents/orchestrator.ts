@@ -28,11 +28,6 @@ function findPersona(name: AgentName) {
 function stubText(name: AgentName, userPrompt: string): string {
   const topic = userPrompt.length > 80 ? `${userPrompt.slice(0, 77)}...` : userPrompt;
   const flavor: Partial<Record<AgentName, string>> = {
-    war_room_analogist: `Think of it like a familiar everyday process that mirrors the mechanics of "${topic}" step for step.`,
-    war_room_purist: `Formally: the defining property of "${topic}" holds precisely when its conditions are satisfied — no hand-waving needed.`,
-    war_room_real_world: `You'd see "${topic}" show up directly in engineering, science, or everyday decisions that depend on this exact mechanism.`,
-    war_room_skeptic: `But what happens at the edge case for "${topic}"? If the explanation survives that, it's solid — if not, back to the drawing board.`,
-    war_room_synthesis: `Pulling it together: "${topic}" comes down to one clean idea once you combine the intuition, the rigor, and the edge-case check.`,
     diagnosis: `This mistake traces back to "${topic}" — looks like a concept gap rather than a careless slip.`,
     autopsy: `Pattern detected: several recent mistakes trace back to a shared prerequisite gap near "${topic}".`,
     planner: `Recommended next step toward your goal: work on "${topic}" next, since it unblocks the most downstream nodes.`,
@@ -80,61 +75,3 @@ export async function runAgent(
   }
 }
 
-const WAR_ROOM_SEQUENCE: { agent: AgentName; persona: WarRoomPersona }[] = [
-  { agent: 'war_room_analogist', persona: 'analogist' },
-  { agent: 'war_room_purist', persona: 'purist' },
-  { agent: 'war_room_real_world', persona: 'real_world' },
-  { agent: 'war_room_skeptic', persona: 'skeptic' },
-  { agent: 'war_room_synthesis', persona: 'synthesis' },
-];
-
-/**
- * Runs the full War Room debate for a node: analogist → purist → real_world →
- * skeptic → synthesis, each building on the prior transcript. Persists a
- * WarRoomSession and — crucially — calls statusService.engageNode so this is
- * a live demonstration of "agent results write back to Node state" (red → amber).
- */
-export async function runWarRoom(nodeId: string): Promise<WarRoomSession> {
-  const node = nodesRepo.getById(nodeId);
-  if (!node) {
-    throw new Error(`runWarRoom: no node with id ${nodeId}`);
-  }
-
-  const transcript: WarRoomMessage[] = [];
-
-  for (const step of WAR_ROOM_SEQUENCE) {
-    const priorContext = transcript
-      .map((m) => `[${m.agent_persona}]: ${m.message}`)
-      .join('\n\n');
-    const userPrompt = priorContext
-      ? `Concept: "${node.label}" (${node.subject}).\n\nWar Room so far:\n${priorContext}\n\nAdd your perspective.`
-      : `Concept: "${node.label}" (${node.subject}). Open the War Room debate with your perspective on how to explain this to a student who is stuck.`;
-
-    emitAgentThinking({ agent: step.agent, node_id: nodeId, message: `${step.persona} is thinking...` });
-
-    const { text } = await runAgent(step.agent, userPrompt);
-
-    const message: WarRoomMessage = {
-      agent_persona: step.persona,
-      message: text,
-      at: new Date().toISOString(),
-    };
-    transcript.push(message);
-    emitAgentThinking({ agent: step.agent, node_id: nodeId, message: text });
-  }
-
-  const session: WarRoomSession = {
-    id: `warroom_${nanoid(10)}`,
-    student_id: getActiveStudentId(),
-    node_id: nodeId,
-    transcript,
-    outcome: null,
-    created_at: new Date().toISOString(),
-  };
-  warRoomSessionsRepo.insert(session);
-
-  // The whole point: War Room engagement is what flips a node red -> amber.
-  engageNode(nodeId);
-
-  return session;
-}

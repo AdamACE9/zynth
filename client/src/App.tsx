@@ -8,7 +8,7 @@ import { KnowledgeGraph } from './graph/KnowledgeGraph';
 import { TopBar } from './ui/TopBar';
 import { Legend } from './ui/Legend';
 import { NodePanel } from './ui/NodePanel';
-import { WarRoom } from './screens/WarRoom';
+import { Intuition } from './screens/Intuition';
 import { Quiz } from './screens/Quiz';
 import { Explain } from './screens/Explain';
 import { Autopsy } from './screens/Autopsy';
@@ -25,7 +25,7 @@ interface GraphPayload {
 
 /** Which full-screen overlay (if any) is mounted on top of the ever-present graph. */
 type ActiveScreen = {
-  type: 'warroom' | 'quiz' | 'explain' | 'autopsy' | 'plan' | 'exam' | 'timemachine';
+  type: 'intuition' | 'quiz' | 'explain' | 'autopsy' | 'plan' | 'exam' | 'timemachine';
   nodeId: string | null;
 };
 
@@ -380,8 +380,15 @@ function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) 
       </AnimatePresence>
       {/* Full-screen rooms — the graph stays mounted behind them at all times. */}
       <AnimatePresence>
-        {activeScreen?.type === 'warroom' && activeScreenNode && (
-          <WarRoom key="warroom" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
+        {activeScreen?.type === 'intuition' && activeScreenNode && (
+          <Intuition
+            key="intuition"
+            node={activeScreenNode}
+            onClose={closeScreen}
+            patchNode={patchNode}
+            replaceNode={replaceNode}
+            onOpenScreen={openScreen}
+          />
         )}
         {activeScreen?.type === 'quiz' && activeScreenNode && (
           <Quiz key="quiz" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />

@@ -425,6 +425,130 @@ export interface ClientToServerEvents {
 }
 
 // ---------------------------------------------------------------------------
+// Intuition — the visual, interactive understanding step (red → amber)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why this exists, and why it is a *constrained grammar* rather than free-form
+ * generated markup.
+ *
+ * The module it replaced (War Room) asked five AI personas to explain a concept
+ * in prose. Five uncapped paragraphs, streamed in sequence, to move one node
+ * red→amber — the exact same outcome as one click of Explain. A student can
+ * read the textbook faster, and a judge reasonably asks why they wouldn't.
+ *
+ * Intuition inverts that: at most ~40 words of reading, one thing to drag, and
+ * one prediction the student has to commit to before the answer is revealed.
+ * Prediction-before-reveal is the highest-yield intervention that is also
+ * inherently interactive, and a wrong prediction is a real misconception datum
+ * rather than a lost turn.
+ *
+ * The grammar is deliberately tiny — two visual kinds and one parameter. A
+ * model asked to emit arbitrary SVG or component code will eventually emit
+ * something unrenderable, and a blank screen mid-demo is far worse than a
+ * plainer visual. Everything here is validated and clamped on arrival
+ * (see the server's intuitionService), and there is always a deterministic
+ * fallback spec, so this screen cannot fail to render.
+ */
+
+/**
+ * `curves`  — plot one or more functions of `x`, reshaped live by the slider `t`.
+ *             Covers most of calculus, kinematics, growth/decay, waves, optics.
+ * `stages`  — an ordered process, one stage highlighted as the slider advances.
+ *             Covers the many concepts that are a sequence rather than a function
+ *             (a reaction, mitosis, a proof's steps).
+ */
+export type IntuitionVisualKind = 'curves' | 'stages';
+
+/**
+ * A single plotted function. `expr` is evaluated by the client's own small
+ * expression evaluator — NOT eval() — in terms of two free variables:
+ *   x  the horizontal domain
+ *   t  the slider's current value
+ */
+export interface IntuitionCurve {
+  id: string;
+  label: string;
+  expr: string;
+  /** `primary` is the curve the concept is about; `secondary` is context. */
+  role: 'primary' | 'secondary';
+}
+
+/** The one thing the student can drag. Exactly one — never a control panel. */
+export interface IntuitionParam {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  unit?: string;
+}
+
+/** One step of a `stages` visual. `detail` is a phrase, not a sentence. */
+export interface IntuitionStage {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+/**
+ * A candidate answer to the prediction. For `curves` it carries its own `expr`
+ * so a wrong guess can be drawn *next to* the truth — seeing your own predicted
+ * shape fail is the moment the misconception dies.
+ */
+export interface IntuitionPredictOption {
+  id: string;
+  label: string;
+  expr?: string;
+  stage_id?: string;
+}
+
+export interface IntuitionPredict {
+  question: string;
+  options: IntuitionPredictOption[];
+  correct_id: string;
+  /** The one-line reason, revealed only after the student has committed. */
+  why: string;
+}
+
+export interface IntuitionSpec {
+  node_id: string;
+  kind: IntuitionVisualKind;
+  title: string;
+  caption: string;
+  param: IntuitionParam;
+  domain: [number, number];
+  range: [number, number];
+  curves: IntuitionCurve[];
+  stages: IntuitionStage[];
+  predict: IntuitionPredict;
+  /** false when this is the deterministic fallback rather than model output. */
+  generated: boolean;
+}
+
+/**
+ * Hard caps, enforced server-side on arrival rather than merely requested in
+ * the prompt. The entire premise is that this screen is short; a model that
+ * ignores "keep it brief" must not be able to reintroduce the wall of text
+ * this module exists to delete.
+ */
+export const INTUITION_LIMITS = {
+  captionWords: 12,
+  questionWords: 16,
+  optionWords: 8,
+  whyWords: 24,
+  titleWords: 8,
+  maxCurves: 3,
+  maxStages: 5,
+  minOptions: 2,
+  maxOptions: 3,
+} as const;
+
+/** Words, counted the way the caps above mean it. */
+export function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+// ---------------------------------------------------------------------------
 // Status color palette (shared so backend logs + frontend render agree)
 // ---------------------------------------------------------------------------
 
@@ -452,3 +576,5 @@ export function computeMasteryScore(node: Pick<Node, 'status' | 'last_quiz_resul
       return node.last_quiz_result ? Math.min(30, Math.round(node.last_quiz_result.score)) : 12;
   }
 }
+
+export * from './mathExpr.js';
