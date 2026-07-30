@@ -351,12 +351,18 @@
   color: var(--text-secondary);
   /* Staggered entrance — index arrives via the --i custom property set inline
      per chip. Capped in JS so a 28-chip library doesn't take 2s to appear.
-     `backwards` (not `both`): holding the *pre-start* state is all that's
-     needed to avoid a flash-of-full-opacity before the delay elapses. Holding
-     the *post-end* state too (`both`) would permanently pin opacity:1 above
-     the cascade and defeat the :disabled dimming below. */
+     Fill mode MUST be `both`, not `backwards`. `backwards` holds only the
+     PRE-start keyframe during the delay; once the animation finishes the
+     element falls back to its base style, which is the `opacity: 0` on the
+     line above — so every chip faded in and then vanished, leaving the subject
+     picker looking empty and unclickable. `both` holds the post-end keyframe
+     too, which is the whole point.
+     (This was previously `backwards` on purpose, to stop the filled opacity:1
+     outranking the `:disabled` dimming — animations beat normal author
+     declarations in the cascade. That conflict is real; it is solved on the
+     :disabled rule with `filter` instead, not by breaking the common case.) */
   opacity: 0;
-  animation: ob-chip-in var(--t-base) var(--ease-out) backwards;
+  animation: ob-chip-in var(--t-base) var(--ease-out) both;
   animation-delay: calc(var(--i, 0) * 55ms);
   transition:
     color var(--t-micro) var(--ease-micro),
@@ -406,10 +412,13 @@
   box-shadow: 0 0 22px rgba(82, 229, 232, 0.14);
 }
 
-/* Capped-out chips (subject picker at MAX_SUBJECTS) — dimmed via the normal
-   cascade so it isn't fought by the entrance animation above. */
+/* Capped-out chips (subject picker at MAX_SUBJECTS).
+   Dimmed with `filter`, NOT `opacity`. The entrance animation above fills
+   `both`, and animation declarations outrank normal author declarations in the
+   cascade — an `opacity` here would simply lose to the filled keyframe. filter
+   composes independently of opacity, so it wins regardless. */
 .zynth-ob .ob-chip:disabled {
-  opacity: 0.35;
+  filter: opacity(0.35);
   cursor: not-allowed;
 }
 
