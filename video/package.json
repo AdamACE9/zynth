@@ -1,0 +1,23 @@
+{
+  "name": "zynth-video",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Remotion end card for the Zynth demo video. Deliberately OUTSIDE the npm workspaces in the root package.json so its heavy render dependencies never touch the app build.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render EndCard out/endcard.mp4 --codec=h264",
+    "render-transparent": "remotion render EndCard out/endcard.mov --codec=prores --prores-profile=4444",
+    "still": "remotion still EndCard out/endcard.png --frame=150"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.290",
+    "@remotion/google-fonts": "4.0.290",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "remotion": "4.0.290"
+  },
+  "devDependencies": {
+    "@types/react": "19.0.0",
+    "typescript": "5.6.3"
+  }
+}
