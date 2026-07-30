@@ -92,6 +92,29 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
       gl={{ antialias: true, alpha: true }}
       camera={{ position: [0, restZ * CAMERA_Y, restZ * 1.65], fov: CAMERA_FOV, near: 0.1, far: 400 }}
       onPointerMissed={() => onSelectNode(null)}
+      onCreated={({ gl }) => {
+        // Survive a lost GPU context instead of going black forever.
+        //
+        // The browser only fires `webglcontextrestored` if something called
+        // preventDefault() on `webglcontextlost` — otherwise the context is
+        // gone for good and the canvas stays blank with nothing in the console
+        // but "THREE.WebGLRenderer: Context Lost". This is not exotic: a driver
+        // hiccup, the tab backgrounding, or another canvas mounting can all
+        // trigger it, and on this screen it means the entire product disappears
+        // while every API call keeps succeeding.
+        const canvas = gl.domElement;
+        canvas.addEventListener(
+          'webglcontextlost',
+          (event) => {
+            event.preventDefault();
+            console.warn('[graph] WebGL context lost — waiting for restore');
+          },
+          false,
+        );
+        canvas.addEventListener('webglcontextrestored', () => {
+          console.warn('[graph] WebGL context restored');
+        });
+      }}
     >
       {/* Fog has to track the camera distance. Pinned at its old [46, 130] it
           swallowed the far half of any graph the moment the camera pulled back

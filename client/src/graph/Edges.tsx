@@ -70,7 +70,13 @@ export function Edges({ edges, positions }: EdgesProps) {
         const from = positions.get(edge.source_node_id);
         const to = positions.get(edge.target_node_id);
         if (!from || !to) return null;
-        const style = EDGE_STYLE[edge.relationship_type];
+        // Fall back rather than index blindly. An edge whose relationship_type
+        // isn't in the table would make `style` undefined, and reading
+        // `style.opacity` on the next line throws inside the r3f render loop —
+        // which does not fail gracefully, it takes the whole canvas down and
+        // the graph goes black. Autopsy writes edges at runtime, so this is
+        // reachable from real data rather than only from a bad migration.
+        const style = EDGE_STYLE[edge.relationship_type] ?? EDGE_STYLE.related_topic;
         return (
           <EdgeLine
             key={edge.id}
