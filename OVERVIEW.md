@@ -32,7 +32,7 @@ Zynth turns your syllabus into a single 3D knowledge graph where every concept i
 node, and the node's colour reflects **evidence** of mastery rather than exposure to
 material. Red means untouched. Amber means you engaged with it and the system *believes*
 you understand it — but has no proof. Green means you **passed a quiz**, and that is the
-only route there. Every other module in the product — multi-persona AI debates, mistake
+only route there. Every other module in the product — the interactive visuals, mistake
 autopsies, exam simulation, autonomous planning — reads from and writes to that same
 graph. The graph is not a visualisation bolted onto a study app; it is the app's state.
 
@@ -87,7 +87,7 @@ Every concept is a node. Its colour is a **claim about proof**, not about effort
 | | State | Meaning |
 |---|---|---|
 | 🔴 | **Red** | Untouched, or just failed a retest. Re-reading the chapter nine times does not move it. |
-| 🟠 | **Amber** | You *engaged* — War Room or the tutor. Zynth believes you understand it, but has **no evidence**. |
+| 🟠 | **Amber** | You *engaged* — Intuition or the tutor. Zynth believes you understand it, but has **no evidence**. |
 | 🟢 | **Green** | You **passed a quiz**. The only route to green. |
 
 Amber is the important one, and it's the state most products don't have. It's the honest
@@ -103,7 +103,7 @@ amber. Mastery isn't a badge you collect; it's a claim the graph keeps re-checki
 ## 4. The core mechanic
 
 ```
-red   --[engaged_at set via War Room or Explain]-->  amber
+red   --[engaged_at set via Intuition or Explain]-->  amber
 amber --[quiz passed, score >= 70]-------------->    green
 green --[failed retest]-------------------------->   amber
 ```
@@ -150,10 +150,11 @@ which is the point.
 **You click a red node** — say, *Related Rates*. You get a real screen, not a bubble
 floating over the graph. Two ways in:
 
-- **War Room**, where five AI personas — an analogist, a purist, a real-world engineer,
-  a skeptic, and a synthesiser — argue about the concept in a live group chat, streaming
-  token by token, disagreeing with each other, until they converge on one clean
-  explanation. The skeptic's job is to poke holes in the others.
+- **Intuition**, where you get one thing to drag and one question to answer. Move the
+  slider and the relationship reshapes in front of you. Then it asks you to predict what
+  happens next — and you have to commit before anything is revealed. Get it wrong and your
+  predicted curve is drawn against reality, so you see exactly where your model of the
+  concept diverged from how it actually behaves.
 - **Explain**, a calm 1:1 tutor that *already holds your file* — this node, your mistake
   history on it, your mastery trend. You never brief it first. This is the deliberate
   fallback for when the flashy feature doesn't land for a given student.
@@ -195,10 +196,29 @@ framed correctly.
 The graph is the **navigation spine**, not a container for every UI. You click a node and
 go to a proper full-screen experience.
 
-#### War Room
-Five personas with genuinely distinct system prompts debate a concept live. They stream
-token-by-token, address each other, and converge to a synthesis with an understated "case
-closed" beat. Moves the node **red → amber**. This is the demo centrepiece.
+#### Intuition
+The understanding step, and the demo centrepiece. Gemini designs a visual per concept —
+either a set of plotted curves or an ordered process — with exactly **one** parameter the
+student can drag. Then it asks for a prediction, and the student must commit before
+anything is revealed. A wrong guess is drawn against reality so the divergence is visible
+rather than described.
+
+Deliberately a **constrained grammar** rather than generated markup: two visual kinds and
+one slider. A model asked for arbitrary SVG eventually emits something unrenderable, and a
+blank panel mid-demo is worse than a plainer visual. Every field is validated and clamped
+on arrival, and generation failure falls back to a deterministic spec — the screen cannot
+fail to render.
+
+Expressions are evaluated by a real parser, never `eval()`: these strings arrive from a
+model at runtime, so `constructor(2)` has to be a parse error rather than a function call.
+The parser lives in `shared/`, which lets the server validate a spec by compiling every
+expression in it using the exact code the client renders with. Total reading on the
+screen: about forty words. Moves the node **red → amber**.
+
+*This replaced a five-persona AI debate. That module produced 600–1200 words of streamed
+prose to reach the same amber state as one click of Explain — a student could read the
+textbook faster, and it was the only part of the product that lectured instead of
+diagnosing.*
 
 #### Quiz
 Full-screen, questions generated for the exact node(s) you're on. MCQ graded
@@ -217,7 +237,7 @@ your personal failure modes. No other study tool restructures its own map this w
 
 #### Explain
 A context-aware 1:1 tutor. Already knows the node, your mistakes on it, and your trend.
-Calmer and more utilitarian than War Room by design — it's the safety net, not the star.
+Calmer and more utilitarian than Intuition by design — it's the safety net, not the star.
 
 #### Live Co-Pilot
 Watches a quiz in progress. Maintains a live mastery heatmap and injects an **unprompted**
@@ -285,13 +305,14 @@ Your schedule against the syllabus — where you are versus where the term expec
 
 ## 7. How AI is used — and where it deliberately isn't
 
-**Google Gemini** (2.5 Flash) runs every agent: War Room personas, quiz generation,
-Autopsy clustering, the tutor, exam grading, planning. **Groq (Llama 3.3 70B)** grades
-free-response answers — deliberately a *different* model from the one that wrote the
+**Google Gemini** (2.5 Flash) runs every agent: designing the Intuition visuals, quiz
+generation, Autopsy clustering, the tutor, exam grading, planning. **Groq (Llama 3.3 70B)**
+grades free-response answers — deliberately a *different* model from the one that wrote the
 question, so the grader isn't marking its own homework.
 
-The multi-agent War Room is one model with distinct system prompts and separate
-conversation state — a standard multi-agent pattern, described honestly as such.
+Note what Gemini produces for Intuition: not an explanation, but a **specification** — a
+parameterised visual plus a prediction designed to catch a specific misconception. The
+rendering is entirely deterministic code.
 
 ### Where AI is deliberately kept out
 
@@ -343,7 +364,7 @@ react-three-fiber + drei + postprocessing · d3-force-3d.
 ### Realtime
 
 Socket.io events include `node:updated`, `node:status_changed`, `node:created`,
-`edge:created`, `graph:snapshot`, `warroom:turn`, `warroom:resolved`, `autopsy:progress`,
+`edge:created`, `graph:snapshot`, `autopsy:progress`,
 `copilot:heatmap`, `copilot:insight`, `plan:updated`, `exam:reasoning`.
 
 Status changes are broadcast through an explicit listener registry on `statusService` —
@@ -390,7 +411,7 @@ AstroLabs Dubai) and the **Prometheus July AI Challenge** (Devpost).
 
 | Tier | Modules | State |
 |---|---|---|
-| **Tier 1** | Graph, War Room, Quiz, Autopsy, Explain, Co-Pilot, Study Plan, Exam Sim | Complete, verified end-to-end |
+| **Tier 1** | Graph, Intuition, Quiz, Autopsy, Explain, Co-Pilot, Study Plan, Exam Sim | Complete, verified end-to-end |
 | **Tier 2** | Flashcard Forge, Debate Arena, Office Hours | Functional |
 | — | Curriculum Time-Machine | In progress |
 

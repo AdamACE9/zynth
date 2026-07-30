@@ -4,6 +4,22 @@
 building, why every decision was made, and how it should work. If something here conflicts with a
 passing chat message, this file wins unless Adam explicitly says otherwise.
 
+> ### AMENDMENT — War Room was cut and replaced by Intuition
+>
+> Everything below describing the **War Room** (a five-persona AI debate) is **superseded**.
+> Adam cut it on review, and he was right to: five uncapped personas produced 600–1200 words
+> of streamed prose to reach the same red→amber state as one click of Explain. A student can
+> read the textbook faster, and it was the only module in the product that *taught* rather
+> than diagnosed — off-thesis, and the weakest thing a judge would see.
+>
+> Its replacement, **Intuition**, keeps the same slot in the state machine (it is one of the
+> two red→amber entry points, alongside Explain) but inverts the interaction: one visual, one
+> slider, and one prediction the student must commit to before anything is revealed. ~40 words
+> of reading instead of ~1000. See `OVERVIEW.md` §6 for the current description.
+>
+> The rest of this brief — especially the Node.status state machine in Section 2, which is
+> unchanged and still enforced twice — remains authoritative.
+
 ---
 
 ## 0. The one-paragraph version

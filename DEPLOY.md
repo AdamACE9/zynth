@@ -9,7 +9,7 @@ Zynth is two pieces with very different hosting needs:
 
 > **Why not Vercel for the backend?** Vercel runs serverless functions: they are torn
 > down between requests and the filesystem is read-only and ephemeral. Zynth's backend
-> holds open Socket.io connections (the live graph, War Room token streaming, the Live
+> holds open Socket.io connections (the live graph, the Live
 > Co-Pilot heatmap) and writes to a SQLite file. Neither survives on Vercel. This is
 > called out in TASKBRIEFING §4 as well.
 

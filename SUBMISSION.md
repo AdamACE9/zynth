@@ -52,9 +52,10 @@ re-checking.
 
 Everything else reads and writes that one graph:
 
-- **War Room** — five AI personas (an analogist, a purist, a real-world one, a skeptic, and a
-  synthesiser) argue about a concept you're stuck on in a live group chat, streaming
-  token-by-token. They answer *each other*, not you, and when they converge the node moves.
+- **Intuition** — one slider, one visual, one prediction. Drag the parameter and watch the
+  relationship reshape; then commit to what happens next *before* anything is revealed. Guess
+  wrong and your predicted curve is drawn against reality, so you see precisely where your
+  mental model diverged. About forty words of reading, and the node moves.
 - **Autopsy Board** — paste your wrong answers and it finds the single misconception
   underneath all of them, then **draws new edges on your graph** between the concepts that
   keep failing together. It found "you drop the negative when the inner function is
@@ -77,10 +78,15 @@ and a d3-force-3d layout that clusters subjects into constellations. Node + Expr
 (WAL)** on the back, with **Socket.io** pushing state changes so the graph is genuinely live
 rather than a page you refresh.
 
-**Google Gemini** runs every agent — the War Room personas, question generation, the Autopsy
-clustering, the tutor, exam grading, planning. The "multi-agent" debate is one model with
-five distinct system prompts, which is a standard pattern and does exactly what you'd want.
-**Groq (Llama 3.3 70B)** grades free-response answers.
+**Google Gemini** runs every agent — designing the Intuition visuals, question generation,
+the Autopsy clustering, the tutor, exam grading, planning. For Intuition it emits a
+*specification* rather than an explanation: a parameterised visual plus a prediction aimed at
+a specific misconception, which deterministic code then renders through a real expression
+parser (never `eval` — those strings arrive from a model at runtime).
+**Groq (Llama 3.3 70B)** grades free-response answers, deliberately a different model from
+the one that wrote the question.
+
+Gemini never decides a node's colour. It designs and diagnoses; the state machine decides.
 
 The hardest engineering wasn't any single feature — it was making one invariant impossible to
 violate across ten modules that all touch the same graph.
@@ -203,7 +209,8 @@ diagnoses and re-plans continuously.
 
 **How it's agentic:** Zynth isn't a chatbot with a syllabus attached. Multiple specialised
 agents read from and write to a shared world-model (the graph):
-- Five **War Room** personas debate a concept and converge, moving the node's state.
+- An **Intuition** agent designs a manipulable visual and a prediction targeted at the
+  misconception this student's own recorded mistakes reveal.
 - An **Autopsy** agent clusters mistakes across sessions and *modifies the graph itself*,
   drawing new edges between correlated weaknesses.
 - A **Planner** agent re-plans the study route autonomously whenever mastery changes — no
@@ -215,7 +222,8 @@ than a demo.
 
 **Live demo plan (~4 min):**
 1. Open on the graph — a wall of red and amber. "This is an honest starting point."
-2. Click a red node → **War Room** → five agents argue live → node turns amber.
+2. Click a red node → **Intuition** → drag the slider, commit to a prediction, watch your
+   wrong guess drawn against reality → node turns amber.
 3. **Quiz** that node → pass → it turns green. Point out this is the *only* route to green.
 4. **Autopsy Board** → paste real mistakes → it names one root cause across three topics and
    draws new edges on the graph in real time.
@@ -224,7 +232,7 @@ than a demo.
 
 **Demo-day checklist:**
 - Run the backend **locally** (no cold starts, no venue wifi dependency beyond the AI APIs).
-- Warm up Gemini with one call before presenting — free tier is 15 req/min and a War Room is
-  5 calls.
+- Warm up Gemini with one call before presenting — free tier is 15 req/min, and a cold first
+  call mid-demo will stall you. (Intuition is a single call, so this is cheaper than it was.)
 - `npm run seed` immediately before demoing for a clean 6/6/6 red/amber/green graph.
 - Have the deployed URL as a backup, not the primary.

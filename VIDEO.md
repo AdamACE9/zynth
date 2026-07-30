@@ -16,13 +16,13 @@ npm run seed          # clean 6 red / 6 amber / 6 green graph
 npm run dev           # backend :3001 + frontend :5173
 ```
 
-1. **Warm up Gemini** — open one War Room and close it. Free tier is 15 req/min and a
-   War Room is 5 calls; a cold first call mid-take will stall you.
+1. **Warm up Gemini** — open one Intuition screen and close it. Free tier is 15 req/min and
+   a cold first call mid-take will stall you. (Intuition is a single call, not five.)
 2. Browser at **1920×1080**, zoom 100%, **hide bookmarks bar**, close other tabs.
 3. `localStorage.clear()` in the console so you get the landing page fresh.
 4. Record **backend running locally** — never depend on venue wifi or a Render cold start.
-5. Do 2–3 takes of the War Room beat specifically; the AI output varies each run and you
-   want one where the personas visibly disagree.
+5. Do 2–3 takes of the Intuition beat specifically; the generated visual varies each run and
+   you want one where the slider's effect on the curve is unmistakable at a glance.
 
 ---
 
@@ -64,26 +64,33 @@ npm run dev           # backend :3001 + frontend :5173
 
 ---
 
-### 0:28–0:52 · War Room — the AI beat
+### 0:28–0:52 · Intuition — the AI beat
 
-**With the red node still selected, click War Room.**
+**With the red node still selected, click Intuition.**
 
-> So when I'm stuck, I open the War Room.
+> When I'm stuck, I don't get an essay. I get one thing to move.
 
-**Let the personas stream in. Do NOT talk over the first two — let the viewer read.**
+**Drag the slider slowly, end to end. Say nothing for two seconds — let them watch the
+curve reshape.**
 
-> Five AI agents argue about the concept in front of me. An analogy, a rigorous
-> definition, a real-world use — and a skeptic whose whole job is to attack the other
-> three.
+> Gemini designed this visual for this specific concept. One parameter, and the
+> relationship moves in front of me.
 
-**Point at the Skeptic's message.**
+**Click "test me". The visual freezes and the question appears.**
 
-> They're answering each other, not me.
+> Then it makes me commit. Before it tells me anything.
 
-**The case-closed beat fires; the node goes red → amber. Close back to the graph.**
+**Pick the WRONG answer deliberately.**
 
-> When they converge, the node moves to amber. I've engaged with it. But Zynth still
-> has no evidence — so it won't give me green.
+**Your violet dashed curve draws in against the cyan one.**
+
+> That's my prediction against what actually happens. I can see exactly where I was
+> wrong — not just that I was.
+
+**The node goes red → amber. Close back to the graph.**
+
+> So the node moves to amber. I've engaged with it. But Zynth still has no evidence —
+> so it won't give me green.
 
 ---
 
@@ -154,7 +161,7 @@ npm run dev           # backend :3001 + frontend :5173
 Cut in this order — **never** cut the closer:
 1. Trim the Quiz beat (0:52–1:12) to ~12s; the pass moment is enough.
 2. Drop the legend hover at 0:12–0:28.
-3. Speed-ramp the War Room streaming to 1.5× with the text still readable.
+3. Trim the slider drag to one clean pass end-to-end.
 
 The retest-failure ending (1:34) is the single most convincing thing in the video —
 every other submission shows their product succeeding. Yours shows it telling the
@@ -175,5 +182,8 @@ Not in the original spec — added on initiative. Worth a line in the Devpost de
 - **Onboarding** has an interactive demo node you drive through the whole state machine
   yourself before you ever reach the app.
 - **Live/Demo connection badge** in the top bar — shows judges the socket is genuinely live.
-- **Quiz score ring**, **War Room round counter**, and the **Explain context chip** that
-  quotes your actual recorded mistake back to you before you type anything.
+- **Quiz score ring** and the **Explain context chip** that quotes your actual recorded
+  mistake back to you before you type anything.
+- **Intuition** aims its prediction at the misconception your *own* recorded mistakes reveal,
+  and renders the model's output through a real expression parser rather than `eval` — the
+  visual is generated, but the maths is verified before it ever draws.

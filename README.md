@@ -28,11 +28,11 @@ Every concept in your syllabus is a node in one 3D graph. Its colour reflects
 | | State | Meaning |
 |---|---|---|
 | 🔴 | **Red** | Untouched, or just failed a retest. Re-reading the chapter nine times does not move it. |
-| 🟠 | **Amber** | You *engaged* with it — War Room or the tutor. Zynth believes you understand it, but has **no evidence**. |
+| 🟠 | **Amber** | You *engaged* with it — Intuition or the tutor. Zynth believes you understand it, but has **no evidence**. |
 | 🟢 | **Green** | You **passed a quiz**. The only route to green. |
 
 ```
-red   --[engaged_at set via War Room or Explain]-->  amber
+red   --[engaged_at set via Intuition or Explain]-->  amber
 amber --[quiz passed, score >= 70]-->                green
 green --[failed retest]-->                           amber
 ```
@@ -51,7 +51,7 @@ rejected; every legal one passed.
 | Module | What it does |
 |---|---|
 | **Knowledge Graph** | Your syllabus as one living 3D map (react-three-fiber), clustered into constellations by subject, updating live over WebSockets. |
-| **War Room** | Five AI personas — analogist, purist, real-world, skeptic, synthesis — argue about a concept you're stuck on in a live group chat, streaming token-by-token, until they converge. Moves the node red→amber. |
+| **Intuition** | One slider, one visual, one prediction you have to commit to before the answer is shown. Gemini designs the visual per concept; a real expression parser renders it. About forty words of reading. Moves the node red→amber. |
 | **Quiz** | Questions generated for the exact concept you're on. MCQ graded exactly, free-response graded by Groq. **The only path to green.** |
 | **Autopsy Board** | Paste your wrong answers. It finds the single misconception underneath *all* of them and **draws new edges on your graph** between the concepts that keep failing together. |
 | **Explain** | A calm 1:1 tutor that already holds your file — this concept, your mistakes, your trend. You never brief it first. |
@@ -84,10 +84,12 @@ if it answers "careless slip" or scores itself under 0.6, the card is dropped.
 
 **Backend** — Node.js · Express · **SQLite (WAL)** via better-sqlite3 · **Socket.io**
 
-**AI** — **Google Gemini** runs every agent (War Room personas, quiz generation, Autopsy
-clustering, the tutor, exam grading, planning). **Groq (Llama 3.3 70B)** grades
-free-response answers. The multi-agent War Room is one model with distinct system
-prompts — a standard multi-agent pattern.
+**AI** — **Google Gemini** runs every agent (Intuition visual design, quiz generation,
+Autopsy clustering, the tutor, exam grading, planning). **Groq (Llama 3.3 70B)** grades
+free-response answers — deliberately a different model from the one that wrote the
+question, so the grader isn't marking its own homework.
+
+Gemini never decides a node's colour. It designs and diagnoses; the state machine decides.
 
 ```
 zynth/
@@ -141,7 +143,7 @@ A few decisions worth calling out, because they were deliberate rather than acci
 Built for two hackathons: the **DDS Agentic AI Demo Challenge** (physical demo day,
 AstroLabs Dubai) and the **Prometheus July AI Challenge**.
 
-Tier 1 (graph, War Room, Quiz, Autopsy, Explain, Co-Pilot, Study Plan, Exam Sim) is
+Tier 1 (graph, Intuition, Quiz, Autopsy, Explain, Co-Pilot, Study Plan, Exam Sim) is
 complete and verified end-to-end. Tier 2 (Flashcard Forge, Debate Arena, Office Hours) is
 functional. Curriculum Time-Machine is in progress.
 
