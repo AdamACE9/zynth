@@ -23,6 +23,7 @@ Built solo, in four days, by [Adam Ahmed](https://github.com/AdamACE9) — 13.
 9. [Design principles](#9-design-principles)
 10. [Honest status](#10-honest-status)
 11. [Running it](#11-running-it)
+12. [Complete feature catalogue](#12-complete-feature-catalogue) — *every screen, its UI, and what it does*
 
 ---
 
@@ -512,3 +513,160 @@ persistent WebSockets and a real filesystem (Render), *not* Vercel serverless.
 **Zynth** · built by Adam Ahmed · [github.com/AdamACE9/zynth](https://github.com/AdamACE9/zynth)
 
 </div>
+
+---
+
+## 12. Complete feature catalogue
+
+*Reference section: every screen and component, what it renders, and what it actually does.
+Written so someone who has never opened the app can describe it accurately — including for
+editing the demo script in [VIDEO.md](VIDEO.md).*
+
+### 12.1 Priority, for anyone choosing what to show
+
+**Tier 1 — the product is incoherent without these:** the 3D graph and the colour rule, the
+three-step loop (Intuition → Explain → Quiz), and green decaying on a failed retest.
+
+**Tier 2 — the differentiators:** Autopsy Board, Live Co-Pilot.
+
+**Tier 3 — name them, don't demo them:** Study Plan + Ghost Path, Exam Simulator, Flashcard
+Forge, Debate Arena, Office Hours, Mastery Streak, Curriculum Time-Machine.
+
+### 12.2 Persistent chrome
+
+Always on screen in the app, floating over the graph.
+
+**Top bar** (`ui/TopBar.tsx`) — the Zynth wordmark in a cyan→violet gradient beside a
+three-node constellation mark. A glass connection chip reads **Live** (cyan dot) or
+**Offline** (dimmed), and adds a **Stub data** tag when the backend has no model key. It
+polls `/api/health` on mount and on every socket reconnect, and renders nothing until it has
+actually confirmed the answer. Connection state never borrows red/amber/green — those mean
+mastery and nothing else, anywhere in the product.
+
+To the right, a segmented "instrument strip" of four buttons: **Plan · Timeline · Exam ·
+Autopsy**. Entries hide progressively on narrow viewports; the divider rule only draws where
+more than one is visible.
+
+**Workspace tabs** (`ui/WorkspaceTabs.tsx`) — a quiet second row. Each tab is an independent
+knowledge graph with its own nodes, edges and history; a `+` runs the onboarding flow for a
+new one. Switching re-keys the whole graph stage.
+
+**Legend** (`ui/Legend.tsx`) — the three states and what each means. Small, permanent, and
+the only place the rule is stated outright in the UI.
+
+**Node panel** (`ui/NodePanel.tsx`) — slides in when you click a node. Shows the label,
+subject, status, mastery score, retest count and status history, plus the recorded mistakes
+on that concept. Three actions: **Intuition**, **Explain**, **Quiz**.
+
+**Co-Pilot panel** (`ui/CopilotPanel.tsx`) — visible during a quiz. A live per-node mastery
+heatmap that updates question by question, plus insight cards that appear unprompted and can
+be dismissed.
+
+**Streak flame** (`ui/StreakFlame.tsx`) — on nodes that have stayed green *through* retests.
+
+### 12.3 The 3D graph
+
+`graph/KnowledgeGraph.tsx` and friends. A react-three-fiber canvas over the page's own
+nebula gradient.
+
+- **`NodeMesh`** — an emissive sphere per concept, `toneMapped={false}` so bloom gives it
+  real glow, plus an additive halo billboard from a canvas-generated radial texture. Colour
+  is the node's status. Selected nodes scale and brighten.
+- **`Edges`** — lines between related concepts. `prerequisite`, `related_topic` and
+  `correlated_error` (drawn by Autopsy) are visually distinct.
+- **`ClusterLabels`** — the subject name floating above each constellation's real centroid,
+  fading with camera distance so you only read the half of the map facing you.
+- **`GhostPath`** — planned-versus-actual progress drawn across the graph, GPS-style.
+- **`useGraphLayout`** — d3-force-3d, clustered by subject. Cluster anchors sit on a ring
+  whose radius is solved for a constant arc gap, ordered by affinity so subjects that share
+  edges sit together. Camera rest distance and zoom bounds are both derived from the actual
+  laid-out node positions, so a 2-subject and a 13-subject graph are each framed correctly.
+  Orbit, pan and zoom are all free.
+
+State arrives over Socket.io, so any status change anywhere in the product propagates
+without a refresh.
+
+### 12.4 The three-step loop
+
+**Intuition** (`screens/Intuition.tsx`, `screens/IntuitionVisual.tsx`)
+*Step 1 — get a feel for the shape of the idea.*
+Opens with 2–3 sentences saying what the concept is and what the graph shows, then an SVG
+visual with labelled axes and a legend naming each line, and exactly **one** slider. Three
+phases: **explore** (drag it), **predict** (the visual freezes and asks one question with
+short answer options — you must commit), **reveal** (reality drawn in cyan, and if you were
+wrong your predicted curve drawn against it in violet — never red/green, which are reserved
+for mastery). Committing to the prediction is what moves the node **red → amber**. Two visual
+kinds: `curves` (plotted functions reshaped by the slider) and `stages` (an ordered process).
+Expressions are compiled by a real parser in `shared/`, never `eval`.
+
+**Explain** (`screens/Explain.tsx`)
+*Step 2 — where the actual teaching happens.*
+Opens with a full lesson rather than waiting to be asked: what the concept is, the mechanism
+with a worked example, the misconception people hit here, and a self-check. A context chip
+quotes your own recorded mistake back at you. Then it takes questions. Scoped by the **same
+objective the quiz is generated from**, which is what makes "everything the quiz can ask was
+taught here" true by construction rather than by luck.
+
+**Quiz** (`screens/Quiz.tsx`)
+*Step 3 — the only route to green.*
+Four questions for that exact concept: 3 MCQ + 1 free response. MCQ graded by exact match;
+free response graded by Groq — deliberately a different model from the one that wrote the
+question. Keyboard-driven (1–4 to pick, Enter to advance). A score ring lands at the end;
+≥ 70 moves **amber → green**, and a failed retest moves **green → amber**.
+
+### 12.5 The differentiators
+
+**Autopsy Board** (`screens/Autopsy.tsx`) — paste in wrong answers, or load the sample set.
+An agent clusters them and names the single misconception underneath, then **writes
+`correlated_error` edges onto the graph** between the concepts that keep failing together.
+The map changes topology based on how you personally fail.
+
+**Live Co-Pilot** (`ui/CopilotPanel.tsx`, `services/copilotService.ts`) — watches a quiz in
+progress and interrupts with a diagnosis of *why*, not a red cross. Silent on: a single wrong
+answer, the first 3 questions, red/unengaged nodes, alternating right/wrong, a harshly graded
+near-miss, rapid clicking, and anything past 2 cards per session. Fires on: two wrongs on one
+engaged node sharing a misconception, a proven green node collapsing, or wrongs spanning
+nodes joined by an Autopsy edge. Gemini then gets an independent veto.
+
+### 12.6 The rest
+
+| Module | File | What it does |
+|---|---|---|
+| **Study Plan + Ghost Path** | `screens/StudyPlan.tsx` | Prerequisite-respecting route to a stated goal via Kahn's topological sort. Re-plans itself whenever mastery changes, by subscribing to status changes rather than polling. |
+| **Exam Simulator** | `screens/ExamSim.tsx` | Timed paper. Streams the agent's own reasoning per question, self-grades, maps every lost mark back to specific nodes. |
+| **Flashcard Forge** | `screens/Flashcards.tsx` | Extracts concepts from a chapter, **creates graph nodes for ones you've never seen**, mints SM-2 spaced-repetition cards. |
+| **Debate Arena** | `screens/DebateArena.tsx` | Argue a motion against an AI opponent. A real argument *tree* shows what counters what, scored on a rubric. |
+| **Office Hours** | `screens/OfficeHours.tsx` | Question queue batched by shared misconception — many students asking the same thing underneath get one answer with a worked solution. |
+| **Curriculum Time-Machine** | `screens/TimeMachine.tsx` | Your schedule against the syllabus: where you are versus where the term expects you to be. |
+| **Mastery Streak** | `ui/StreakFlame.tsx` | A flame on nodes that stayed green *through* retests. Earned only by re-proving. |
+
+### 12.7 Onboarding
+
+`onboarding/` — seven steps: **Welcome → Subjects → Level → Goal → Mastery rule → Build →
+Done**. You pick up to 13 subjects (plus free-text "Other"). The **Mastery rule** step is the
+important one: rather than stating the red/amber/green rule in prose, it hands you an
+interactive demo node and makes you drive it through the whole state machine yourself before
+you ever reach the app. **Build** calls Gemini per subject and reports progress; every node
+it creates is red.
+
+### 12.8 Marketing site
+
+`site/` — served at `/`, with a "Go to Zynth" button into the app. Renders the knowledge
+graph using the app's **own** constants (`Constellation.tsx` lifts emissive intensity, halo
+geometry and `STATUS_COLORS` straight from the product), so the site and app read as one
+object. `Orbs.tsx` supplies cheaper inline 3D moments with no bloom pass, and
+`Convergence.tsx` draws the Autopsy finding as seven mistakes converging on one cause —
+running red to amber, never reaching green, because a diagnosis is not a verdict.
+
+### 12.9 API surface
+
+`GET /api/health` · `GET /api/graph` · `POST /api/graph/connect` · `GET /api/nodes`,
+`/nodes/:id`, `POST /nodes/:id/engage`, `GET /nodes/:id/intuition` · `POST /api/quiz/generate`,
+`/quiz/submit` · `/api/explain` · `/api/autopsy` · `/api/copilot` · `/api/plan` ·
+`/api/exam` · `/api/flashcards/due`, `/flashcards/forge` · `/api/debate` ·
+`/api/officehours` · `/api/timemachine` · `/api/workspaces`
+
+Two things worth knowing before a live demo: `/api/plan` and `/api/timemachine` return
+**404 by design** when none exists yet — that is not an error. And the flashcards routes are
+`/due` and `/forge`; there is no bare `/api/flashcards`, so hitting that path returns a raw
+Express HTML 404 rather than JSON.
