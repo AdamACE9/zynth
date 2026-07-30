@@ -25,15 +25,33 @@ interface SimLink {
   target: string;
 }
 
+/**
+ * Gap between adjacent cluster centres, in world units. A cluster of 6-8 nodes
+ * settles at roughly 6 units across, so this leaves a clear lane between
+ * neighbours without stranding them.
+ */
+const CLUSTER_SPACING = 15;
+
 /** Places each cluster's anchor evenly around a circle so constellations stay visually separate. */
 function computeClusterAnchors(clusters: string[]): PositionMap {
   const anchors: PositionMap = new Map();
-  // Tighter spacing so the constellations frame together as one map with a
-  // visible link between them, rather than two clumps with a dead gap.
-  const radius = Math.max(11, clusters.length * 6);
+
+  // Radius is derived from the ARC SPACING we want, not from the cluster count
+  // directly. It used to be `clusters.length * 6`, which is radius growing
+  // linearly with count — so the gap between neighbours grew linearly too. At 13
+  // subjects that put the ring 78 units out with ~38 units of dead space between
+  // adjacent clusters, six times wider than a cluster. The camera had to pull
+  // right back to frame it, every node shrank to a dot, and orbiting swung you
+  // across enormous empty gaps. Solving `circumference = count * spacing` keeps
+  // the gap constant instead: 13 subjects now sit at ~31 units, not 78.
+  const radius = Math.max(11, (clusters.length * CLUSTER_SPACING) / (Math.PI * 2));
+
   clusters.forEach((cluster, i) => {
     const angle = (i / clusters.length) * Math.PI * 2;
-    const y = i % 2 === 0 ? 2.5 : -2.5;
+    // Alternating ±2.5 reads as depth for two or three clusters and as a flat
+    // pancake for thirteen. Riding a slow sine around the ring gives the map
+    // real vertical structure without any cluster drifting far off-plane.
+    const y = Math.sin((i / Math.max(1, clusters.length)) * Math.PI * 4) * 4.5;
     anchors.set(cluster, [Math.cos(angle) * radius, y, Math.sin(angle) * radius]);
   });
   return anchors;

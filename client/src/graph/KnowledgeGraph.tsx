@@ -43,11 +43,11 @@ function restDistanceFor(positions: Map<string, [number, number, number]>): numb
   }
   if (maxR === 0) return 36; // empty graph — keep the old default
   const halfFov = (CAMERA_FOV / 2) * (Math.PI / 180);
-  // 1.8 rather than a tight fit: the camera also sits above the graph looking
-  // down (see CAMERA_Y), the layout keeps settling for a few seconds after
-  // mount, and a node clipped at the edge looks broken in a way that a little
-  // extra breathing room never does.
-  return Math.min(140, Math.max(28, (maxR / Math.tan(halfFov)) * 1.8));
+  // 1.3 gives real breathing room without shrinking every node to a dot. It was
+  // 1.8, chosen when cluster anchors sprawled to radius 78 for 13 subjects; now
+  // that useGraphLayout derives the ring from a constant arc gap the extra 40%
+  // of empty space just pushed the camera into the clamp below.
+  return Math.min(140, Math.max(28, (maxR / Math.tan(halfFov)) * 1.3));
 }
 
 /**
@@ -123,13 +123,18 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
 
       <ClusterLabels anchors={clusterAnchors} />
 
+      {/* Zoom bounds are derived from the graph's own size, not fixed. A
+          hardcoded maxDistance of 70 fought the dolly on any large graph: rest
+          distance for 13 subjects computes well past it, so OrbitControls
+          clamped the camera back every frame while CameraDolly pushed it out —
+          which is exactly what "messy to move around" feels like. */}
       <OrbitControls
         autoRotate
         autoRotateSpeed={0.35}
         enableDamping
         dampingFactor={0.08}
-        minDistance={12}
-        maxDistance={70}
+        minDistance={Math.max(6, restZ * 0.25)}
+        maxDistance={restZ * 1.9}
         maxPolarAngle={Math.PI * 0.82}
       />
 

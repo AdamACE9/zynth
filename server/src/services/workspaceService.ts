@@ -36,6 +36,7 @@ import { computeMasteryScore, type Edge, type Node, type RelationshipType } from
 import { config, STUB_MODE, DEMO_STUDENT_ID } from '../config';
 import { db } from '../db/connection';
 import { nodesRepo, edgesRepo, studentsRepo } from '../db/repositories';
+import { connectGraph } from './graphConnectService';
 import { emitNodeCreated, emitEdgeCreated } from '../socket';
 
 /**
@@ -651,6 +652,23 @@ export async function createWorkspace(input: CreateWorkspaceInput): Promise<Crea
   }
 
   const nodeCount = perSubject.reduce((sum, s) => sum + s.nodes.length, 0);
+
+  // Guarantee one traversable map. The cross-subject pass above is best-effort
+  // and, on a real 13-subject graph, left 11 disconnected islands — 84 nodes,
+  // 104 edges, only two subjects linked to anything outside themselves. That
+  // breaks the product's central claim: the Study Plan's topological route, the
+  // Ghost Path and the Autopsy's correlated-error edges all assume a graph you
+  // can actually walk across. This closes whatever the pass above missed, and is
+  // a no-op when the graph is already connected.
+  try {
+    logWorkspaceProgress(workspaceId, 'Linking the subjects into one map...');
+    const connected = await connectGraph(workspaceId);
+    edgeCount += connected.edgesAdded;
+  } catch (err) {
+    // A workspace with islands is still usable; failing creation over it is not
+    // a trade worth making.
+    console.warn('[workspaceService] graph connect pass failed:', err);
+  }
 
   return { workspace, node_count: nodeCount, edge_count: edgeCount, nodes_per_subject: nodesPerSubject };
 }
