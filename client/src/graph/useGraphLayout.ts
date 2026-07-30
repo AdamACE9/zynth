@@ -57,8 +57,69 @@ function computeClusterAnchors(clusters: string[]): PositionMap {
   return anchors;
 }
 
+/**
+ * Orders clusters around the ring so that subjects which are actually LINKED end
+ * up next to each other.
+ *
+ * Previously this was `.sort()` — alphabetical, i.e. arbitrary. Calculus and
+ * Physics landed on opposite sides of the ring, so the cross-subject edge
+ * joining them drew as a long straight line straight through the middle of the
+ * map, over the top of every other cluster. With a dozen such links the centre
+ * became a cat's cradle and the whole thing read as noise.
+ *
+ * Greedy nearest-neighbour: start from the most-connected cluster, then repeatedly
+ * append whichever unplaced cluster shares the most edges with the one just
+ * placed. Not optimal — optimal is a Hamiltonian path problem — but it reliably
+ * puts Calculus beside Physics and Geometry beside Trigonometry, which is all
+ * this needs to do. Ties break alphabetically so the layout stays deterministic
+ * across reloads.
+ */
+function orderClustersByAffinity(clusters: string[], nodes: Node[], edges: Edge[]): string[] {
+  if (clusters.length < 3) return [...clusters].sort();
+
+  const clusterOf = new Map(nodes.map((n) => [n.id, n.cluster || n.subject]));
+  const affinity = new Map<string, Map<string, number>>();
+  for (const c of clusters) affinity.set(c, new Map());
+
+  for (const edge of edges) {
+    const a = clusterOf.get(edge.source_node_id);
+    const b = clusterOf.get(edge.target_node_id);
+    if (!a || !b || a === b) continue;
+    affinity.get(a)?.set(b, (affinity.get(a)?.get(b) ?? 0) + 1);
+    affinity.get(b)?.set(a, (affinity.get(b)?.get(a) ?? 0) + 1);
+  }
+
+  const degree = (c: string) => [...(affinity.get(c)?.values() ?? [])].reduce((s, v) => s + v, 0);
+
+  const remaining = new Set([...clusters].sort());
+  let current = [...remaining].reduce((best, c) => (degree(c) > degree(best) ? c : best), [...remaining][0] as string);
+
+  const ordered: string[] = [];
+  while (remaining.size) {
+    ordered.push(current);
+    remaining.delete(current);
+    if (!remaining.size) break;
+
+    let next: string | null = null;
+    let bestScore = -1;
+    for (const candidate of remaining) {
+      const score = affinity.get(current)?.get(candidate) ?? 0;
+      if (score > bestScore) {
+        bestScore = score;
+        next = candidate;
+      }
+    }
+    // No shared edge with anything left — fall back to the next alphabetically
+    // so disconnected subjects still land somewhere stable.
+    current = next ?? ([...remaining][0] as string);
+  }
+
+  return ordered;
+}
+
 function computeLayout(nodes: Node[], edges: Edge[]): GraphLayout {
-  const clusters = Array.from(new Set(nodes.map((n) => n.cluster || n.subject))).sort();
+  const clusterNames = Array.from(new Set(nodes.map((n) => n.cluster || n.subject)));
+  const clusters = orderClustersByAffinity(clusterNames, nodes, edges);
   const anchors = computeClusterAnchors(clusters);
 
   const simNodes: SimNode[] = nodes.map((n) => {
