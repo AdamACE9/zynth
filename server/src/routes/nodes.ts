@@ -3,6 +3,7 @@ import { getActiveStudentId } from '../config';
 import { mistakeRecordsRepo, nodesRepo } from '../db/repositories';
 import { engageNode } from '../services/statusService';
 import { generateIntuitionSpec } from '../services/intuitionService';
+import { recordConceptFocus } from '../services/conceptFocus';
 
 export const nodesRouter = Router();
 
@@ -68,5 +69,11 @@ nodesRouter.get('/nodes/:id/intuition', async (req, res) => {
   }
 
   const spec = await generateIntuitionSpec(node, mistakes);
+
+  // Hand the objective to quiz generation. Without this the quiz independently
+  // re-interprets the node label and can examine a facet the student was never
+  // shown — see conceptFocus.ts for the concrete failure this fixes.
+  recordConceptFocus(node.id, spec.objective, spec.title);
+
   res.json(spec);
 });

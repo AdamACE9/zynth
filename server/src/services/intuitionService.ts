@@ -37,6 +37,7 @@ import {
   type Node,
 } from '@zynth/shared';
 import { config, STUB_MODE } from '../config';
+import { withModelRetry } from '../agents/retry';
 
 const ai = STUB_MODE ? null : new GoogleGenAI({ apiKey: config.geminiApiKey });
 
@@ -52,6 +53,7 @@ const SPEC_SCHEMA = {
   properties: {
     kind: { type: 'string', enum: ['curves', 'stages'] },
     title: { type: 'string' },
+    objective: { type: 'string' },
     caption: { type: 'string' },
     param: {
       type: 'object',
@@ -114,7 +116,7 @@ const SPEC_SCHEMA = {
       required: ['question', 'options', 'correct_id', 'why'],
     },
   },
-  required: ['kind', 'title', 'caption', 'param', 'predict'],
+  required: ['kind', 'title', 'objective', 'caption', 'param', 'predict'],
 } as const;
 
 function buildPrompt(node: Node, mistakes: MistakeRecord[]): string {
@@ -129,6 +131,10 @@ function buildPrompt(node: Node, mistakes: MistakeRecord[]): string {
 
 Concept: "${node.label}" (subject: ${node.subject}).${mistakeContext}
 This replaces a wall of explanatory text. The student should understand by MANIPULATING and PREDICTING, not by reading. Be ruthlessly brief — a student who has to read a paragraph will leave.
+
+Target the SINGLE MOST CENTRAL mechanism of this concept — the thing you could not remove and still call it "${node.label}". Do NOT pick a peripheral illustration or one narrow worked example. If the concept name is broad or covers several topics, choose the one idea a teacher would introduce FIRST, and make the whole screen about that.
+
+"objective" states, in one line, what the student will be able to do after this screen — starting with a verb, e.g. "Predict how the derivative changes when the function shifts." This is a CONTRACT: the student is quizzed on exactly this objective immediately afterwards, and a quiz that tests something the screen never showed is worse than no quiz at all. So the objective must be fully covered by the visual and the prediction below, and must not promise anything they do not demonstrate.
 
 Choose "kind":
 - "curves" if the concept is a relationship you can plot (rates, motion, growth, decay, waves, trigonometry, optics, forces, supply/demand). STRONGLY PREFER THIS.
@@ -149,6 +155,7 @@ For "stages": 2-${INTUITION_LIMITS.maxStages} stages, each "detail" a phrase (no
 "predict" is the heart of this. Ask ONE question about what happens when the parameter changes — something a student with a common misconception gets WRONG. Give ${INTUITION_LIMITS.minOptions}-${INTUITION_LIMITS.maxOptions} options. For "curves", EVERY option MUST include its own "expr" (same syntax rules) describing the shape that option predicts, so a wrong guess can be drawn next to the truth. For "stages", every option sets "stage_id". "correct_id" must exactly equal one option's "id". "why" is the single-line reason, revealed only after they commit.
 
 HARD LIMITS (exceeding them gets your text truncated):
+- objective: <= ${INTUITION_LIMITS.objectiveWords} words
 - title: <= ${INTUITION_LIMITS.titleWords} words
 - caption: <= ${INTUITION_LIMITS.captionWords} words
 - predict.question: <= ${INTUITION_LIMITS.questionWords} words
@@ -327,6 +334,7 @@ function validateSpec(node: Node, raw: unknown): IntuitionSpec | null {
     node_id: node.id,
     kind,
     title: clampWords(r.title, INTUITION_LIMITS.titleWords, node.label),
+    objective: clampWords(r.objective, INTUITION_LIMITS.objectiveWords, `Understand the core idea behind ${node.label}.`),
     caption: clampWords(r.caption, INTUITION_LIMITS.captionWords, 'Drag to see what changes.'),
     param: {
       label: clampWords(rawParam.label, INTUITION_LIMITS.optionWords, 'value'),
@@ -362,6 +370,7 @@ function fallbackSpec(node: Node): IntuitionSpec {
       node_id: node.id,
       kind: 'curves',
       title: node.label,
+      objective: 'Predict how distance travelled responds when acceleration changes.',
       caption: 'Raise the acceleration and watch the curve bend, not tilt.',
       param: { label: 'acceleration', min: 0, max: 4, step: 0.1, unit: 'm/s²' },
       domain: [0, 6],
@@ -389,6 +398,7 @@ function fallbackSpec(node: Node): IntuitionSpec {
     node_id: node.id,
     kind: 'curves',
     title: node.label,
+    objective: 'Identify where a curve is steepest and why.',
     caption: 'Move the point. Watch how steepness changes with it.',
     param: { label: 'point', min: -3, max: 3, step: 0.1 },
     domain: [-4, 4],
@@ -430,16 +440,19 @@ export async function generateIntuitionSpec(
   }
 
   try {
-    const res = await ai.models.generateContent({
+    const res = await withModelRetry(
+      () => ai.models.generateContent({
       model: config.geminiModel,
       contents: buildPrompt(node, mistakes),
       config: {
         responseMimeType: 'application/json',
         responseSchema: SPEC_SCHEMA,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 1600,
+        maxOutputTokens: 2400,
       },
-    });
+      }),
+      { label: `Intuition spec for "${node.label}"` },
+    );
 
     const text = res.text;
     if (!text) throw new Error('Gemini returned an empty response for the Intuition spec');

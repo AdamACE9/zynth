@@ -514,6 +514,18 @@ export interface IntuitionSpec {
   node_id: string;
   kind: IntuitionVisualKind;
   title: string;
+  /**
+   * What the student should be able to do after this screen, in one line.
+   *
+   * This is the contract between Intuition and the Quiz. Both used to be
+   * independent model calls given only a node label, and they diverged badly —
+   * a visual about a parabola's derivative followed by questions on PCA
+   * eigenvectors. Since a passed quiz is the ONLY route to green, testing a
+   * different facet than the one just taught makes green measure luck instead
+   * of understanding. Quiz generation reads this and anchors its questions to it
+   * (see server/src/services/conceptFocus.ts).
+   */
+  objective: string;
   caption: string;
   param: IntuitionParam;
   domain: [number, number];
@@ -532,6 +544,7 @@ export interface IntuitionSpec {
  * this module exists to delete.
  */
 export const INTUITION_LIMITS = {
+  objectiveWords: 18,
   captionWords: 12,
   questionWords: 16,
   optionWords: 8,

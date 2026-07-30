@@ -17,6 +17,8 @@ import { nanoid } from 'nanoid';
 import { QUIZ_PASS_THRESHOLD, type Node, type QuizQuestion } from '@zynth/shared';
 import { config, STUB_MODE } from '../config';
 import { gradeFreeResponse } from '../agents/groqGrader';
+import { getConceptFocus } from './conceptFocus';
+import { withModelRetry } from '../agents/retry';
 
 const ai = STUB_MODE ? null : new GoogleGenAI({ apiKey: config.geminiApiKey });
 
@@ -197,8 +199,22 @@ export async function generateQuestionsForNode(node: Node): Promise<QuizQuestion
     return buildCannedQuestions(node);
   }
 
+  // What the student was just shown, if they came here from Intuition. Without
+  // this, the two model calls each interpret the node label independently and
+  // can land on completely different facets of it — a visual about a parabola's
+  // derivative followed by questions on PCA eigenvectors. Since a passed quiz is
+  // the only route to green, that makes green measure luck.
+  const focus = getConceptFocus(node.id);
+  const focusContext = focus
+    ? `
+
+CRITICAL — the student has JUST worked through an interactive visual on this exact node, titled "${focus.title}", whose stated objective was:
+    "${focus.objective}"
+Every question you write MUST test THAT objective. This is what they were actually taught, and it is the only thing it is fair to examine them on right now. Do not wander to other facets of "${node.label}" however important those facets are in general — an unanswerable quiz is worse than no quiz. You may vary difficulty and framing, and you may probe whether the idea transfers to a new situation, but the underlying idea being tested must be the objective above.`
+    : '';
+
   const prompt = `You are writing a short mastery quiz for one syllabus concept.
-Concept: "${node.label}" (subject: ${node.subject}).
+Concept: "${node.label}" (subject: ${node.subject}).${focusContext}
 
 Generate exactly ${QUESTIONS_PER_NODE} questions testing understanding of this concept:
 - ${MCQ_PER_NODE} multiple-choice questions (question_type "mcq"), each with EXACTLY 4 short answer choices in "choices", where "correct_answer" is copied EXACTLY (character for character) from one of the 4 choices.
@@ -208,16 +224,27 @@ For every MCQ, also return "choice_tags": an array the SAME LENGTH as "choices",
 Do not reference these instructions in the output. Vary the wrong MCQ choices so none are trivially eliminable.`;
 
   try {
-    const res = await ai.models.generateContent({
+    const res = await withModelRetry(
+      () => ai.models.generateContent({
       model: config.geminiModel,
       contents: prompt,
       config: {
         responseMimeType: 'application/json',
         responseSchema: GENERATION_SCHEMA,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 2048,
+        // 4 questions, each with 4 choices, 4 parallel misconception tags, a
+        // correct answer and an explanation, plus a free-response rubric. At 2048
+        // the model was silently truncated mid-string and JSON.parse threw
+        // "Unterminated string at position 5968", which the catch below turned
+        // into stub questions — so the real symptom was a quiz full of
+        // "[stub] Which statement best describes X?" placeholders, with the
+        // actual cause buried in a log line. Truncation is not a rare edge here:
+        // a fully-populated response is comfortably over 2048.
+        maxOutputTokens: 4096,
       },
-    });
+      }),
+      { label: `quiz generation for "${node.label}"` },
+    );
 
     const text = res.text;
     if (!text) {
