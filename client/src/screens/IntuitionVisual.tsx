@@ -19,10 +19,10 @@ import { compileExpression } from '@zynth/shared';
 
 const VIEW_W = 640;
 const VIEW_H = 340;
-const PAD_L = 44;
+const PAD_L = 58;
 const PAD_R = 18;
 const PAD_T = 18;
-const PAD_B = 34;
+const PAD_B = 52;
 const SAMPLES = 240;
 
 const PLOT_W = VIEW_W - PAD_L - PAD_R;
@@ -191,6 +191,26 @@ function CurvesVisual({ spec, t, curves }: CurvesVisualProps) {
           </text>
         ))}
       </g>
+
+      {/* Axis names. Without these the plot is unreadable — a student sees
+          -3..3 along the bottom and has no idea what it measures. */}
+      <text
+        x={PAD_L + PLOT_W / 2}
+        y={VIEW_H - 4}
+        textAnchor="middle"
+        className="iv-axis-label"
+      >
+        {spec.x_label}
+      </text>
+      <text
+        x={12}
+        y={PAD_T + PLOT_H / 2}
+        textAnchor="middle"
+        className="iv-axis-label"
+        transform={`rotate(-90 12 ${PAD_T + PLOT_H / 2})`}
+      >
+        {spec.y_label}
+      </text>
 
       {/* Curves — secondary first so the primary always sits on top. */}
       <g clipPath="url(#iv-clip)">

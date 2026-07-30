@@ -1,3 +1,4 @@
+import { db } from '../db/connection';
 /**
  * The bridge between what Intuition taught and what the Quiz asks.
  *
@@ -18,10 +19,15 @@
  * to do afterwards — and records it here. Quiz generation reads it and anchors
  * its questions to it.
  *
- * Deliberately in-memory rather than a schema change: this is a within-session
- * hand-off (Intuition → "Prove it" → Quiz), the deadline is hours away, and a
- * missing entry degrades to exactly the previous behaviour. Nothing depends on it
- * surviving a restart.
+ * This was in-memory only at first, and that was wrong: `tsx watch` restarts the
+ * dev server on every file save, and Render restarts on deploy, so the objective
+ * was routinely lost between opening Intuition and reaching the quiz — which is
+ * exactly the bug it was added to fix, reappearing intermittently. It now writes
+ * through to SQLite, with the map kept as a read cache.
+ *
+ * The table is created on demand rather than in schema.sql: it is a cache, not
+ * part of the data model, and it must not be able to break a migration hours
+ * before a deadline.
  */
 
 /** How long a recorded focus stays relevant. Beyond this the student has almost
@@ -40,6 +46,26 @@ interface FocusEntry {
 
 const focusByNode = new Map<string, FocusEntry>();
 
+/** Lazily created so a failure here can never stop the server booting. */
+let tableReady = false;
+function ensureTable(): boolean {
+  if (tableReady) return true;
+  try {
+    db.prepare(
+      `CREATE TABLE IF NOT EXISTS concept_focus (
+         node_id    TEXT PRIMARY KEY,
+         objective  TEXT NOT NULL,
+         title      TEXT NOT NULL,
+         recorded_at INTEGER NOT NULL
+       )`,
+    ).run();
+    tableReady = true;
+  } catch (err) {
+    console.warn('[conceptFocus] could not create cache table; falling back to memory only:', err);
+  }
+  return tableReady;
+}
+
 /**
  * Records what the student was just taught about this node. Called after an
  * Intuition spec is successfully generated.
@@ -54,7 +80,25 @@ export function recordConceptFocus(nodeId: string, objective: string, title: str
     if (oldest !== undefined) focusByNode.delete(oldest);
   }
 
-  focusByNode.set(nodeId, { objective: objective.trim(), title: title.trim(), recordedAt: Date.now() });
+  const entry: FocusEntry = { objective: objective.trim(), title: title.trim(), recordedAt: Date.now() };
+  focusByNode.set(nodeId, entry);
+
+  // Write through. A failure here costs coherence on the next quiz, never the
+  // request the student is currently making.
+  if (ensureTable()) {
+    try {
+      db.prepare(
+        `INSERT INTO concept_focus (node_id, objective, title, recorded_at)
+         VALUES (?, ?, ?, ?)
+         ON CONFLICT(node_id) DO UPDATE SET
+           objective = excluded.objective,
+           title = excluded.title,
+           recorded_at = excluded.recorded_at`,
+      ).run(nodeId, entry.objective, entry.title, entry.recordedAt);
+    } catch (err) {
+      console.warn(`[conceptFocus] failed to persist focus for ${nodeId}:`, err);
+    }
+  }
 }
 
 /**
@@ -62,11 +106,35 @@ export function recordConceptFocus(nodeId: string, objective: string, title: str
  * recent. Quiz generation uses this to test the thing that was actually shown.
  */
 export function getConceptFocus(nodeId: string): { objective: string; title: string } | null {
-  const entry = focusByNode.get(nodeId);
+  let entry = focusByNode.get(nodeId);
+
+  // Cache miss — most often because the process restarted between the student
+  // opening Intuition and reaching the quiz.
+  if (!entry && ensureTable()) {
+    try {
+      const row = db
+        .prepare('SELECT objective, title, recorded_at FROM concept_focus WHERE node_id = ?')
+        .get(nodeId) as { objective: string; title: string; recorded_at: number } | undefined;
+      if (row) {
+        entry = { objective: row.objective, title: row.title, recordedAt: row.recorded_at };
+        focusByNode.set(nodeId, entry);
+      }
+    } catch (err) {
+      console.warn(`[conceptFocus] failed to read focus for ${nodeId}:`, err);
+    }
+  }
+
   if (!entry) return null;
 
   if (Date.now() - entry.recordedAt > FOCUS_TTL_MS) {
     focusByNode.delete(nodeId);
+    if (ensureTable()) {
+      try {
+        db.prepare('DELETE FROM concept_focus WHERE node_id = ?').run(nodeId);
+      } catch {
+        /* expiry is best-effort */
+      }
+    }
     return null;
   }
 
@@ -76,4 +144,11 @@ export function getConceptFocus(nodeId: string): { objective: string; title: str
 /** Test seam — lets the verifier assert the hand-off without a live model call. */
 export function __clearConceptFocus(): void {
   focusByNode.clear();
+  if (ensureTable()) {
+    try {
+      db.prepare('DELETE FROM concept_focus').run();
+    } catch {
+      /* test seam only */
+    }
+  }
 }

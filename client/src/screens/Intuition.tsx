@@ -190,6 +190,18 @@ export function Intuition({ node, onClose, replaceNode, onOpenScreen }: Intuitio
 
           {spec && phase !== 'loading' && (
             <>
+              {/* ---- The teaching. Deliberately BEFORE the visual: you cannot
+                   read a graph of a concept you have never met. ------------- */}
+              {spec.explain.length > 0 && (
+                <div className="iv-explain">
+                  {spec.explain.map((line) => (
+                    <p key={line} className="rm-body">
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              )}
+
               {/* ---- The visual ------------------------------------------- */}
               <div className="iv-frame">
                 <IntuitionVisual
@@ -210,6 +222,19 @@ export function Intuition({ node, onClose, replaceNode, onOpenScreen }: Intuitio
                   transition={{ duration: 0.4, ease: EASE_OUT }}
                   className="flex flex-col gap-4"
                 >
+                  {/* Which line is which. The spec has always carried these
+                      labels; not rendering them left the student looking at two
+                      anonymous curves. */}
+                  {spec.kind === 'curves' && spec.curves.length > 0 && (
+                    <div className="iv-legend">
+                      {spec.curves.map((c) => (
+                        <span key={c.id} className="iv-legend-item" data-tone={c.role === 'primary' ? 'truth' : 'context'}>
+                          {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <p className="rm-lead">{spec.caption}</p>
 
                   <label className="iv-slider-row">

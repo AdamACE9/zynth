@@ -526,8 +526,36 @@ export interface IntuitionSpec {
    * (see server/src/services/conceptFocus.ts).
    */
   objective: string;
+  /**
+   * The actual teaching: 2–3 short sentences that say what the concept IS and
+   * what the visual below is showing.
+   *
+   * This exists because the first version of this screen didn't have it, and it
+   * was a genuine failure. Replacing War Room's 1200 words of AI debate, the
+   * design over-corrected to ~40 words — a title, a caption and a slider — on
+   * the theory that manipulation teaches better than prose. It does, but only
+   * once you know what you are manipulating. A student who has never met
+   * "overfitting" gets nothing from dragging a complexity slider; they just see
+   * two lines move. Adam's words: "Only a graph that I could move around and
+   * visualize! Actually teach me!"
+   *
+   * So: short enough to read in ten seconds, long enough to actually explain.
+   * Sentences, not a wall — capped hard (see INTUITION_LIMITS) so this can never
+   * grow back into the thing it replaced.
+   */
+  explain: string[];
   caption: string;
   param: IntuitionParam;
+  /**
+   * What the axes MEAN, in plain language ("input value", "predicted price").
+   *
+   * Without these the plot is unreadable: a student sees -3 to 3 across the
+   * bottom and 0 to 3 up the side and has no way to know what either measures.
+   * A visual you cannot read teaches nothing, so these are required, and the
+   * renderer always draws them.
+   */
+  x_label: string;
+  y_label: string;
   domain: [number, number];
   range: [number, number];
   curves: IntuitionCurve[];
@@ -545,6 +573,14 @@ export interface IntuitionSpec {
  */
 export const INTUITION_LIMITS = {
   objectiveWords: 18,
+  /** Per sentence of `explain`, and how many sentences.
+   *  Set generously (~100 words total across 3 sentences) because the cap
+   *  truncates rather than rejects: at 22 words real sentences were being cut
+   *  mid-thought — "Overfitting happens when a model learns the training" — and
+   *  an incoherent fragment teaches worse than a slightly longer sentence. The
+   *  sentence COUNT is what stops this becoming a wall of prose. */
+  explainSentenceWords: 34,
+  maxExplainSentences: 3,
   captionWords: 12,
   questionWords: 16,
   optionWords: 8,

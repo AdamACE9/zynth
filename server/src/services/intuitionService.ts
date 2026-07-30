@@ -54,6 +54,7 @@ const SPEC_SCHEMA = {
     kind: { type: 'string', enum: ['curves', 'stages'] },
     title: { type: 'string' },
     objective: { type: 'string' },
+    explain: { type: 'array', items: { type: 'string' } },
     caption: { type: 'string' },
     param: {
       type: 'object',
@@ -66,6 +67,8 @@ const SPEC_SCHEMA = {
       },
       required: ['label', 'min', 'max', 'step'],
     },
+    x_label: { type: 'string' },
+    y_label: { type: 'string' },
     domain: { type: 'array', items: { type: 'number' } },
     range: { type: 'array', items: { type: 'number' } },
     curves: {
@@ -116,7 +119,7 @@ const SPEC_SCHEMA = {
       required: ['question', 'options', 'correct_id', 'why'],
     },
   },
-  required: ['kind', 'title', 'objective', 'caption', 'param', 'predict'],
+  required: ['kind', 'title', 'objective', 'explain', 'caption', 'param', 'x_label', 'y_label', 'predict'],
 } as const;
 
 function buildPrompt(node: Node, mistakes: MistakeRecord[]): string {
@@ -140,10 +143,19 @@ Choose "kind":
 - "curves" if the concept is a relationship you can plot (rates, motion, growth, decay, waves, trigonometry, optics, forces, supply/demand). STRONGLY PREFER THIS.
 - "stages" only if the concept is fundamentally an ordered process (a reaction pathway, mitosis, a proof's steps, a life cycle).
 
+TEACH THE IDEA FIRST. "explain" is 2-${INTUITION_LIMITS.maxExplainSentences} short sentences that actually explain the concept to someone meeting it for the FIRST time, then say what the visual below is showing them. Assume zero prior knowledge of this specific concept. Sentence 1: what the thing IS, in plain language, no jargon unless you define it inline. Sentence 2: why it matters or what goes wrong without it. Final sentence: what the lines and the slider on the graph below represent — refer to each line by the exact "label" you gave it in "curves", and NEVER by a colour. You do not control the palette; the app renders one line solid-cyan and the other muted-dashed with a legend, so naming a colour ("the blue line") will simply be wrong on screen. This is not optional flavour — a student who does not already know the term learns nothing from dragging a slider, they just watch two lines move.
+
+THE VISUAL MUST BE READABLE ON ITS OWN. A student who cannot tell what the axes measure or what each line represents has learned nothing, however elegant the maths is. So:
+- "x_label" and "y_label" name what each axis MEASURES, in plain student language ("time (seconds)", "predicted price", "input value"). Never a variable name like "x" or "t", never a formula.
+- Every curve "label" names what that line IS, in plain language — "the model's fit", "the real data", "distance travelled". NEVER a formula like "f(x) = (x-t)^2"; the student is looking at the shape, not reading algebra. These labels are rendered as the legend, so they are the only thing telling them which line is which.
+- "caption" says what to WATCH FOR as they drag, and what it means when it happens — not an instruction to drag. Bad: "Adjust model complexity to fit the data." Good: "Too simple misses the pattern; too complex chases every wobble."
+
 For "curves":
 - "curves" is 1-${INTUITION_LIMITS.maxCurves} functions. Each "expr" is a mathematical expression in the variables x (the horizontal axis) and t (the slider value).
 - Allowed syntax ONLY: numbers, x, t, pi, e, + - * / ^ , parentheses, and these functions: sin cos tan asin acos atan sinh cosh tanh exp ln log10 log2 sqrt cbrt abs floor ceil round sign min(a,b) max(a,b) pow(a,b) atan2(a,b) mod(a,b).
 - NO other identifiers, NO variable assignment, NO comparisons, NO units inside expr.
+- There is NO randomness available. If the concept needs "noisy" or "real world" data, build it from a sum of sines with different frequencies, e.g. "sin(x) + 0.35*sin(3.7*x) + 0.2*sin(8.1*x)" — that looks irregular but is a valid expression. An expression that fails to parse is DROPPED, so if your explanatory text names a line that got dropped the student reads about a line that is not on screen.
+- Every line you mention in "explain" MUST exist in "curves". Do not describe a curve you did not emit.
 - The slider t MUST visibly change the shape — if t does not appear in at least one expr, the design has failed.
 - "domain" is [xmin, xmax] and "range" is [ymin, ymax]. Choose them so the curves stay ON SCREEN for EVERY value of t between param.min and param.max. Avoid vertical asymptotes inside the domain.
 - Mark exactly one curve "primary" — the one the concept is about.
@@ -175,6 +187,27 @@ function clampWords(text: unknown, max: number, fallback: string): string {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (words.length <= max) return words.join(' ');
   return words.slice(0, max).join(' ');
+}
+
+/**
+ * The teaching lines. Each sentence is truncated rather than dropped, and the
+ * list is capped — this is the one field with real room to grow, and the whole
+ * point of the module is that it never becomes a wall of text again.
+ */
+function validateExplain(raw: unknown, node: Node): string[] {
+  const fallback = [
+    `${node.label} is a core idea in ${node.subject}.`,
+    'Drag the control below and watch how the shape responds.',
+  ];
+  if (!Array.isArray(raw)) return fallback;
+
+  const out: string[] = [];
+  for (const item of raw) {
+    if (typeof item !== 'string' || !item.trim()) continue;
+    out.push(clampWords(item, INTUITION_LIMITS.explainSentenceWords, ''));
+    if (out.length >= INTUITION_LIMITS.maxExplainSentences) break;
+  }
+  return out.length ? out : fallback;
 }
 
 function finiteOr(value: unknown, fallback: number): number {
@@ -335,6 +368,7 @@ function validateSpec(node: Node, raw: unknown): IntuitionSpec | null {
     kind,
     title: clampWords(r.title, INTUITION_LIMITS.titleWords, node.label),
     objective: clampWords(r.objective, INTUITION_LIMITS.objectiveWords, `Understand the core idea behind ${node.label}.`),
+    explain: validateExplain(r.explain, node),
     caption: clampWords(r.caption, INTUITION_LIMITS.captionWords, 'Drag to see what changes.'),
     param: {
       label: clampWords(rawParam.label, INTUITION_LIMITS.optionWords, 'value'),
@@ -343,6 +377,8 @@ function validateSpec(node: Node, raw: unknown): IntuitionSpec | null {
       step,
       unit: typeof rawParam.unit === 'string' ? rawParam.unit.slice(0, 12) : undefined,
     },
+    x_label: clampWords(r.x_label, 5, 'input'),
+    y_label: clampWords(r.y_label, 5, 'value'),
     domain: pairOr(r.domain, [0, 10]),
     range: pairOr(r.range, [-10, 10]),
     curves,
@@ -371,8 +407,15 @@ function fallbackSpec(node: Node): IntuitionSpec {
       kind: 'curves',
       title: node.label,
       objective: 'Predict how distance travelled responds when acceleration changes.',
+      explain: [
+        'Acceleration is how quickly speed itself changes, not how fast you are going.',
+        'Under steady acceleration, distance grows with the square of time — so the curve bends instead of staying straight.',
+        'The solid line is distance travelled; the dashed line is what constant speed would have given you.',
+      ],
       caption: 'Raise the acceleration and watch the curve bend, not tilt.',
       param: { label: 'acceleration', min: 0, max: 4, step: 0.1, unit: 'm/s²' },
+      x_label: 'time (seconds)',
+      y_label: 'distance (metres)',
       domain: [0, 6],
       range: [0, 80],
       curves: [
@@ -399,8 +442,15 @@ function fallbackSpec(node: Node): IntuitionSpec {
     kind: 'curves',
     title: node.label,
     objective: 'Identify where a curve is steepest and why.',
+    explain: [
+      'Steepness at a point is how fast the output changes for a tiny change in input.',
+      'It is not the height of the curve — a curve can be high up and completely flat.',
+      'The solid line is the curve; the dashed line shows its steepness at the point you pick.',
+    ],
     caption: 'Move the point. Watch how steepness changes with it.',
     param: { label: 'point', min: -3, max: 3, step: 0.1 },
+    x_label: 'input value',
+    y_label: 'output value',
     domain: [-4, 4],
     range: [-4, 12],
     curves: [
@@ -448,7 +498,7 @@ export async function generateIntuitionSpec(
         responseMimeType: 'application/json',
         responseSchema: SPEC_SCHEMA,
         thinkingConfig: { thinkingBudget: 0 },
-        maxOutputTokens: 2400,
+        maxOutputTokens: 3000,
       },
       }),
       { label: `Intuition spec for "${node.label}"` },

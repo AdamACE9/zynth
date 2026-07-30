@@ -1414,3 +1414,30 @@
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* The teaching block — sits above the visual, because a student cannot read a
+   graph of a concept they have never met. Capped in the spec, not here. */
+.iv-explain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 18px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  border-left: 2px solid var(--accent-cyan);
+  background: rgba(82, 229, 232, 0.05);
+}
+
+.iv-axis-label {
+  font-family: var(--f-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  fill: var(--text-muted);
+}
+
+/* Context curves are dashed + muted in the plot; the legend swatch must match. */
+.iv-legend-item[data-tone='context']::before {
+  border-top-style: dashed;
+  border-color: var(--text-muted);
+}
