@@ -164,14 +164,17 @@ never brief it first. Crucially it is scoped by the *same objective the quiz is 
 from*, which is what makes "everything the quiz can ask was taught here" true by
 construction rather than by luck. Then you can ask it anything.
 
-**Step 3 — Quiz.** The only route to green.
+Committing to that prediction is what moves the node **red → amber**. Zynth now believes
+you understand it. It does not yet believe you can prove it, and it says so.
 
-Either way, the node moves **red → amber**. Zynth now believes you understand it. It does
-not yet believe you can prove it, and it says so.
+**Step 3 — Quiz.** The only route to green, and it can only ask about the objective you
+were just taught. MCQs graded exactly; free-response graded by a *different* model from the
+one that wrote the question, so the grader isn't marking its own homework. Score ≥ 70 and
+the node settles into green — one glow, no confetti.
 
-**You take the quiz.** Questions generated for that exact concept. MCQs graded exactly;
-free-response graded by a separate model. Score ≥ 70 and the node settles into green —
-one glow, no confetti.
+That ordering is the whole design. Intuition gives you a feel for the shape of the thing,
+Explain gives you the content, and the Quiz is the only step allowed to change what the
+graph claims about you.
 
 **Mid-quiz, something interrupts you.** Not a red cross — a card that says the equivalent
 of *"this isn't an arithmetic slip. You don't understand why the inequality sign flips."*
@@ -200,6 +203,16 @@ propagates to the graph without a refresh. The camera derives its resting distan
 the actual laid-out node positions — so a 2-subject graph and a 13-subject graph are both
 framed correctly.
 
+Two things make it hold up at 13 subjects rather than 2. **It is one connected map, not a
+field of islands** — subject generation only wires prerequisites *within* a subject, which
+left a real 13-subject graph as 11 disconnected components. A pass now proposes genuinely
+meaningful cross-subject links (Calculus/Limits → Newton's Laws, Trigonometry →
+Geometry/Angles) and draws them as `related_topic`, never `prerequisite` — inventing a
+prerequisite would silently reorder your study plan on a guess. And **the ring is ordered by
+affinity**, so subjects that share edges sit next to each other; alphabetical ordering put
+Calculus and Physics on opposite sides and every link between them cut straight across the
+middle of the map.
+
 The graph is the **navigation spine**, not a container for every UI. You click a node and
 go to a proper full-screen experience.
 
@@ -219,8 +232,15 @@ fail to render.
 Expressions are evaluated by a real parser, never `eval()`: these strings arrive from a
 model at runtime, so `constructor(2)` has to be a parse error rather than a function call.
 The parser lives in `shared/`, which lets the server validate a spec by compiling every
-expression in it using the exact code the client renders with. Total reading on the
-screen: about forty words. Moves the node **red → amber**.
+expression in it using the exact code the client renders with.
+
+The screen opens with two or three sentences saying what the concept *is* and what the
+graph is showing, then the axes and each line are labelled in plain language. That teaching
+block exists because the first version didn't have it, and it was a genuine failure: a
+student meeting "overfitting" for the first time got two anonymous lines and a slider, and
+learned nothing. Manipulation teaches, but only once you know what you're manipulating. It
+is capped by *sentence count* so it can't grow back into the wall of prose it replaced.
+Moves the node **red → amber**.
 
 *This replaced a five-persona AI debate. That module produced 600–1200 words of streamed
 prose to reach the same amber state as one click of Explain — a student could read the
@@ -430,10 +450,19 @@ AstroLabs Dubai) and the **Prometheus July AI Challenge** (Devpost).
 
 **What's genuinely verified**, not just believed:
 
-- The status state machine, re-tested against the live API after the most recent UI
-  overhaul — all three legal transitions pass, illegal ones are rejected at the DB layer,
-  and a red node scoring 100% correctly stays red.
+- The status state machine, re-tested against the live API after every major change — all
+  three legal transitions pass, illegal ones are rejected at the DB layer, and a red node
+  scoring 100% correctly stays red.
+- Intuition → Quiz coherence, on a fully generated (not fallback) pair: the objective
+  *"predict how changes in the constant of integration affect the graph of an
+  antiderivative"* produced four questions all on that objective, one of which tested
+  transfer rather than restating it.
+- The expression evaluator that renders Intuition's visuals, against 66 cases including
+  operator precedence, right-associative `^`, and injection attempts. Model-authored maths
+  strings are untrusted input, so this is a security boundary, not a maths utility.
 - Workspace creation from selected subjects generates a real graph with all nodes red.
+- Graph connectivity: a real 13-subject graph went from 11 disconnected islands to one
+  traversable map.
 - Typecheck clean across all three workspaces; client builds clean.
 - No secrets in git history (full-history sweep).
 
@@ -441,6 +470,12 @@ AstroLabs Dubai) and the **Prometheus July AI Challenge** (Devpost).
 
 - `POST /api/workspaces` doesn't auto-activate the workspace it creates. Onboarding calls
   `activateWorkspace` explicitly, so it isn't user-facing — but it's a trap for future code.
+- Every model call degrades to clearly-labelled stub content rather than failing. One retry
+  sits in front of that fallback, but a long enough network outage will still surface
+  placeholder text rather than an error — deliberate, since a demo that degrades beats a
+  demo that crashes.
+- The Intuition expression grammar has no randomness, so genuinely noisy data is
+  approximated with a sum of sines. Honest, but not the same thing.
 - Cold `vite dev` start takes ~2 minutes when `node_modules` sits inside a cloud-synced
   folder. Not a code issue; worth knowing before a live demo so a slow boot isn't mistaken
   for a crash.
