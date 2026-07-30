@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+
+    <!--
+      Zynth intro card — 4 seconds, same 120 BPM two-bar grid as the outro
+      (../index.html), and the same generated track. Bar 1 is the greeting,
+      bar 2 hands off to the demo, so the cut to the first real screen lands on
+      a bar line rather than wherever the voiceover happens to stop.
+    -->
+
+    <!-- Keep this <link>: it is how the compiler learns which families to fetch
+         and cache. Removing it drops Space Grotesk from the resolved set and the
+         card silently falls back to a generic sans. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: #030308; }
+
+      :root {
+        --bg-void: #030308;
+        --bg-deep: #06070f;
+        --text-primary: #f4f6ff;
+        --text-secondary: rgba(240, 243, 253, 0.80);
+        --text-muted: rgba(240, 243, 253, 0.58);
+        --accent-cyan: #52e5e8;
+        --accent-violet: #9b7bff;
+      }
+
+      .fill { position: absolute; inset: 0; }
+
+      .nebula {
+        background:
+          radial-gradient(ellipse 80% 60% at 18% 12%, rgba(90, 74, 255, 0.22), transparent 60%),
+          radial-gradient(ellipse 70% 55% at 88% 82%, rgba(24, 200, 205, 0.14), transparent 62%),
+          radial-gradient(ellipse 90% 70% at 55% 100%, rgba(200, 60, 190, 0.06), transparent 65%),
+          radial-gradient(ellipse 100% 100% at 50% 50%, var(--bg-deep) 0%, var(--bg-void) 70%, #010104 100%);
+      }
+      .grain {
+        opacity: 0.035; mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+      .vignette {
+        background: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 55%, rgba(2,2,6,0.5) 100%);
+      }
+
+      .stage {
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        text-align: center;
+      }
+
+      /* CSS holds the FROM state; the timeline tweens toward settled.
+         Note this lists #brand-GLOW, not #brand. The glow wrapper is what the
+         timeline animates, so putting the from-state on the inner #brand left
+         it pinned at opacity 0 forever — the wordmark never appeared, and
+         because the element still occupied its box the only symptom was a
+         suspicious gap between "Welcome to" and the dots. */
+      #welcome, #brand-glow, #demo, #dots { opacity: 0; transform: translateY(24px); filter: blur(6px); }
+
+      #welcome {
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 46px; font-weight: 500;
+        letter-spacing: 0.01em;
+        color: var(--text-secondary);
+      }
+
+      #brand-glow { margin-top: 10px; filter: drop-shadow(0 0 48px rgba(155,123,255,0.32)); }
+      #brand {
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 190px; font-weight: 700;
+        letter-spacing: -0.035em; line-height: 1;
+        background-image: linear-gradient(92deg, var(--accent-cyan), var(--accent-violet));
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent;
+      }
+
+      /* The three states, as a quiet reminder of what the demo is about to show. */
+      #dots { margin-top: 30px; display: flex; gap: 14px; align-items: center; }
+      .dot { width: 14px; height: 14px; border-radius: 999px; }
+
+      #demo {
+        margin-top: 44px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 30px; letter-spacing: 0.08em;
+        color: var(--text-primary);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div
+      id="root"
+      data-composition-id="zynth-intro"
+      data-start="0"
+      data-duration="4"
+      data-fps="30"
+      data-width="1920"
+      data-height="1080"
+    >
+      <!-- Same generated track as the outro: 120 BPM, Am -> C, resolving on the
+           bar 2 downbeat. Here that resolve lands under "Let's start the demo",
+           so the handoff into the first real screen happens on the chord change.
+
+           NOTE the path. Compositions are served with the PROJECT ROOT as their
+           base URL, not the compositions/ directory, so this is "assets/..."
+           and not "../assets/...". With the ../ form the render still succeeds
+           and still muxes a 4-second audio stream — it is just silent, which is
+           exactly the kind of failure you only catch by measuring loudness. -->
+
+      <audio
+        id="bgm"
+        class="clip"
+        src="assets/endcard-music.m4a"
+        data-start="0"
+        data-duration="4"
+        data-track-index="1"
+        data-volume="1"
+      ></audio>
+
+      <div class="fill nebula"></div>
+      <div class="fill grain"></div>
+      <div class="fill vignette"></div>
+
+      <div id="card" class="clip fill stage" data-start="0" data-duration="4" data-track-index="0">
+        <div id="welcome">Welcome to</div>
+        <div id="brand-glow"><div id="brand">Zynth</div></div>
+
+        <div id="dots">
+          <span class="dot" style="background:#ff3b5c; box-shadow:0 0 16px #ff3b5c"></span>
+          <span class="dot" style="background:#ffb020; box-shadow:0 0 16px #ffb020"></span>
+          <span class="dot" style="background:#28e0a0; box-shadow:0 0 16px #28e0a0"></span>
+        </div>
+
+        <div id="demo">Let&rsquo;s start the demo.</div>
+      </div>
+    </div>
+
+    <script>
+      const tl = gsap.timeline({ paused: true });
+
+      // 120 BPM: beat 0.5s, bar 2s. Bar 1 is the greeting, bar 2 is the handoff.
+      const BEAT = 0.5;
+      const BAR = 2.0;
+
+      const rise = (target, at) =>
+        tl.to(target, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power3.out" }, at);
+
+      rise("#welcome", 0);            // bar 1, beat 1
+      rise("#brand-glow", BEAT * 0.6);
+      rise("#dots", BEAT * 2);        // bar 1, beat 3
+      rise("#demo", BAR);             // bar 2 downbeat — lands on the chord change
+
+      tl.fromTo("#card", { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "none" }, 0);
+      tl.to("#card", { opacity: 0, duration: 0.55, ease: "none" }, 3.45);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["zynth-intro"] = tl;
+    </script>
+  </body>
+</html>
