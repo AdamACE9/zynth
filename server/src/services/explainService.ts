@@ -19,6 +19,8 @@ import { config, STUB_MODE, getActiveStudentId } from '../config';
 import { AGENT_CONFIGS } from '../agents/personas';
 import { explainSessionsRepo, mistakeRecordsRepo, nodesRepo } from '../db/repositories';
 import { engageNode } from './statusService';
+import { getConceptFocus } from './conceptFocus';
+import { withModelRetry } from '../agents/retry';
 
 const ai = STUB_MODE ? null : new GoogleGenAI({ apiKey: config.geminiApiKey });
 
@@ -62,6 +64,10 @@ function summarizeMistakes(mistakes: MistakeRecord[]): string {
  * their situation.
  */
 export function buildContextInstruction(node: Node, mistakes: MistakeRecord[]): string {
+  // What Intuition just taught, if anything. The quiz is generated against this
+  // same objective, so naming it here is what makes the tutor cover the ground
+  // the student is about to be examined on rather than a different slice.
+  const focus = getConceptFocus(node.id);
   const persona = findExplainPersona();
   const trend = summarizeTrend(node.history);
   const mistakeList = summarizeMistakes(mistakes);
@@ -198,4 +204,98 @@ export async function sendExplainTurn(
     messages: updatedMessages,
     tutor_reply: tutorReply,
   };
+}
+
+/**
+ * The opening lesson: a complete, structured explanation of the concept,
+ * delivered before the student has asked anything.
+ *
+ * Explain used to be purely reactive — it waited for a question. That is the
+ * wrong shape for its new position in the flow. Intuition builds the intuition
+ * and is deliberately tiny (one slider, one prediction, ~40 words); it does not
+ * and should not carry the full content. Adam: "make explain ai step 2, and it
+ * should have all knowledge that will be tested in the quiz. as the visualize
+ * isnt enough."
+ *
+ * So the tutor now teaches first and takes questions after. It is scoped by the
+ * same conceptFocus objective the quiz is generated from, which is what makes
+ * "everything the quiz tests was covered here" true by construction rather than
+ * by luck.
+ */
+export async function generateOpeningLesson(nodeId: string): Promise<{ lesson: string; stubbed: boolean }> {
+  const node = nodesRepo.getById(nodeId);
+  if (!node) throw new Error(`generateOpeningLesson: no node with id ${nodeId}`);
+
+  const mistakes = mistakeRecordsRepo.getByNode(nodeId);
+  const focus = getConceptFocus(nodeId);
+
+  if (STUB_MODE || !ai) {
+    return {
+      lesson:
+        `[stub:explain_tutor] Here is the short version of ${node.label}. ` +
+        `Add a GEMINI_API_KEY to get the full lesson, then ask me anything about it.`,
+      stubbed: true,
+    };
+  }
+
+  const prompt =
+    `${buildContextInstruction(node, mistakes)}
+
+` +
+    `TASK: teach this concept from scratch, right now, before the student asks anything.
+` +
+    `Cover EVERYTHING they will be examined on${focus ? ` under the objective "${focus.objective}"` : ` about ${node.label}`}. ` +
+    `They are about to take a quiz built from exactly that scope, so anything you leave out is something they can fairly be asked and will not know.
+
+` +
+    `Shape it as:
+` +
+    `1. What it is, in plain language.
+` +
+    `2. The mechanism — how it actually works, with one concrete worked example using real numbers.
+` +
+    `3. The mistake people make here, named specifically${mistakes.length ? ' (theirs above included)' : ''}.
+` +
+    `4. One line on how to check yourself.
+
+` +
+    `Use short paragraphs and plain sentences. No headings, no markdown, no bullet characters — this renders as chat.
+
+` +
+    `CRITICAL — this is a single uninterrupted explanation, not a conversation:
+` +
+    `- Do NOT write the student's side. No "(Student replies)", no imagined answers, no dialogue.
+` +
+    `- Do NOT ask questions inside the lesson or pause for a response. You are teaching, not interviewing.
+` +
+    `- Do NOT open with a greeting or "today we're going to learn". Start with the actual content.
+` +
+    `(The tutor persona above tells you to ask a focused question first. That applies to later turns in the chat, NOT to this opening lesson.)
+` +
+    `Only the very last sentence may invite a question.
+
+` +
+    `Aim for 180-260 words: complete enough to answer the quiz from, short enough to actually read.`;
+
+  try {
+    const res = await withModelRetry(
+      () =>
+        ai.models.generateContent({
+          model: config.geminiModel,
+          contents: prompt,
+          config: { thinkingConfig: { thinkingBudget: 0 }, maxOutputTokens: 1400 },
+        }),
+      { label: `opening lesson for "${node.label}"` },
+    );
+
+    const lesson = res.text?.trim();
+    if (!lesson) throw new Error('empty lesson');
+    return { lesson, stubbed: false };
+  } catch (err) {
+    console.warn('[explainService] opening lesson failed:', err instanceof Error ? err.message : err);
+    return {
+      lesson: `Let's go through ${node.label} together. Ask me what you'd like to start with — or tell me which part feels shakiest.`,
+      stubbed: true,
+    };
+  }
 }

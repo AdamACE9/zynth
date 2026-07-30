@@ -3,10 +3,12 @@ import type { CSSProperties } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { ExplainMessage, Node, Status, StatusHistoryEntry } from '@zynth/shared';
 import { STATUS_COLORS } from '@zynth/shared';
-import { sendExplainMessage } from '../lib/api';
+import { fetchExplainLesson, sendExplainMessage } from '../lib/api';
 import './rooms.css';
 
 export interface ExplainProps {
+  /** Explain is step 2 — "Prove it" hands off to the Quiz from here. */
+  onOpenScreen?: (type: 'quiz', nodeId: string) => void;
   node: Node;
   onClose: () => void;
   patchNode: (nodeId: string, patch: Partial<Node>) => void;
@@ -90,7 +92,7 @@ function ThinkingDots() {
  * already knows the student's status, mastery and trend, so it's stated as
  * plain fact before a single word is typed.
  */
-export function Explain({ node, onClose }: ExplainProps) {
+export function Explain({ node, onClose, onOpenScreen }: ExplainProps) {
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const [messages, setMessages] = useState<ExplainMessage[]>([]);
   const [input, setInput] = useState('');
@@ -99,6 +101,7 @@ export function Explain({ node, onClose }: ExplainProps) {
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
   const [surpriseQuote, setSurpriseQuote] = useState<string | null>(null);
   const [contextExpanded, setContextExpanded] = useState(false);
+  const [lessonLoading, setLessonLoading] = useState(true);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -110,6 +113,38 @@ export function Explain({ node, onClose }: ExplainProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  /**
+   * The tutor teaches FIRST. Explain used to sit silent until the student typed
+   * something, which is the wrong shape for step 2 of the flow: Intuition is
+   * deliberately tiny and does not carry the content, so if this screen also
+   * waits to be asked, nobody has actually taught the concept before the quiz.
+   *
+   * The lesson is scoped by the same objective the quiz is generated from, so
+   * everything it can ask has been covered here.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    setLessonLoading(true);
+
+    fetchExplainLesson(node.id)
+      .then(({ lesson }) => {
+        if (cancelled) return;
+        setMessages((prev) =>
+          prev.length ? prev : [{ role: 'tutor', content: lesson, at: new Date().toISOString() }],
+        );
+      })
+      .catch(() => {
+        /* the chat still works — the student can just ask directly */
+      })
+      .finally(() => {
+        if (!cancelled) setLessonLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [node.id]);
 
   // Auto-scroll only when the student was already near the bottom — never
   // yank them back down mid-scroll while reading earlier turns.
@@ -205,6 +240,11 @@ export function Explain({ node, onClose }: ExplainProps) {
             <h2 className="rm-subtitle rm-wrap mt-2">{node.label}</h2>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2 pt-0.5">
+            {onOpenScreen && (
+              <button type="button" onClick={() => onOpenScreen('quiz', node.id)} className="rm-btn rm-btn-solid">
+                Prove it →
+              </button>
+            )}
             <span className="rm-micro hidden sm:inline">Esc</span>
             <button type="button" onClick={onClose} className="rm-icon-btn" aria-label="Close explain session">
               <span aria-hidden="true">✕</span>

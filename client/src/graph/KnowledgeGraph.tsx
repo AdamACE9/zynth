@@ -123,19 +123,27 @@ export function KnowledgeGraph({ nodes, edges, selectedNodeId, onSelectNode }: K
 
       <ClusterLabels anchors={clusterAnchors} />
 
-      {/* Zoom bounds are derived from the graph's own size, not fixed. A
+      {/* Zoom bounds derive from the graph's own size, not fixed numbers. A
           hardcoded maxDistance of 70 fought the dolly on any large graph: rest
           distance for 13 subjects computes well past it, so OrbitControls
-          clamped the camera back every frame while CameraDolly pushed it out —
-          which is exactly what "messy to move around" feels like. */}
+          clamped the camera back every frame while CameraDolly pushed it out.
+
+          The range is deliberately wide — 0.06x lets you get right inside a
+          single constellation to read individual nodes, 3.2x pulls back far
+          enough to see all thirteen at once. Panning is enabled so you can move
+          the centre of rotation to the subject you care about instead of
+          always orbiting the origin, and maxPolarAngle is gone so you can go
+          over the top and look straight down at the map. */}
       <OrbitControls
         autoRotate
         autoRotateSpeed={0.35}
         enableDamping
         dampingFactor={0.08}
-        minDistance={Math.max(6, restZ * 0.25)}
-        maxDistance={restZ * 1.9}
-        maxPolarAngle={Math.PI * 0.82}
+        enablePan
+        panSpeed={0.8}
+        zoomSpeed={1.15}
+        minDistance={Math.max(3, restZ * 0.06)}
+        maxDistance={restZ * 3.2}
       />
 
       <EffectComposer>

@@ -318,12 +318,16 @@ export function Intuition({ node, onClose, replaceNode, onOpenScreen }: Intuitio
                   )}
 
                   <div className="flex flex-wrap items-center gap-2">
+                    {/* Intuition builds the intuition; it is deliberately tiny
+                        and does not carry the full content. The tutor teaches
+                        the rest, scoped to what the quiz will actually ask, and
+                        only then is "prove it" a fair thing to offer. */}
                     <button
                       type="button"
-                      onClick={() => onOpenScreen('quiz', node.id)}
+                      onClick={() => onOpenScreen('explain', node.id)}
                       className="rm-btn rm-btn-solid"
                     >
-                      Prove it →
+                      Now learn it properly →
                     </button>
                     <button
                       type="button"
@@ -335,13 +339,12 @@ export function Intuition({ node, onClose, replaceNode, onOpenScreen }: Intuitio
                     >
                       Play with it again
                     </button>
-                    <button type="button" onClick={() => onOpenScreen('explain', node.id)} className="rm-btn rm-btn-ghost">
-                      Still unsure
-                    </button>
+
                   </div>
 
                   <p className="rm-micro">
-                    This concept is now <strong>amber</strong> — engaged, not yet proven. Only a passed quiz turns it green.
+                    Now <strong>amber</strong> — engaged, not yet proven. Next the tutor covers everything the quiz can ask;
+                    only a passed quiz turns it green.
                   </p>
                 </motion.div>
               )}

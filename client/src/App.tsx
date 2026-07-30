@@ -394,7 +394,14 @@ function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) 
           <Quiz key="quiz" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
         )}
         {activeScreen?.type === 'explain' && activeScreenNode && (
-          <Explain key="explain" node={activeScreenNode} onClose={closeScreen} patchNode={patchNode} replaceNode={replaceNode} />
+          <Explain
+            key="explain"
+            node={activeScreenNode}
+            onClose={closeScreen}
+            patchNode={patchNode}
+            replaceNode={replaceNode}
+            onOpenScreen={openScreen}
+          />
         )}
         {activeScreen?.type === 'autopsy' && <Autopsy key="autopsy" onClose={closeScreen} />}
         {activeScreen?.type === 'plan' && <StudyPlan key="plan" onClose={closeScreen} />}

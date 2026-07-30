@@ -227,6 +227,17 @@ export async function engageNode(nodeId: string): Promise<Node> {
  * deterministic spec — so a rejection here means the network or the node id,
  * not the model.
  */
+/**
+ * The tutor's opening lesson for a node. Explain is step 2 of the flow, so it
+ * teaches before the student asks — scoped by the same objective the quiz is
+ * generated from.
+ */
+export async function fetchExplainLesson(nodeId: string): Promise<{ lesson: string; stubbed: boolean }> {
+  const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/explain/lesson`));
+  if (!res.ok) throw new Error(`GET /api/nodes/${nodeId}/explain/lesson responded ${res.status}`);
+  return (await res.json()) as { lesson: string; stubbed: boolean };
+}
+
 export async function fetchIntuition(nodeId: string): Promise<IntuitionSpec> {
   const res = await fetch(apiUrl(`/api/nodes/${encodeURIComponent(nodeId)}/intuition`));
   if (!res.ok) {

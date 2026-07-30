@@ -8,8 +8,14 @@ interface ClusterLabelsProps {
   anchors: PositionMap;
 }
 
-/** How far outside its cluster the label sits, in world units. */
-const OUTWARD_OFFSET = 7;
+/**
+ * The label sits just above its own constellation. It used to also be pushed
+ * radially outward, which lined every name up on a ring away from the nodes it
+ * named — Adam: "why are all the names in a circle instead of with their
+ * graphs?". Now that the anchor passed in is the cluster's real centroid, the
+ * name belongs directly over it.
+ */
+const OUTWARD_OFFSET = 0;
 /** Past this fraction of the graph's own scale, a label starts fading out. */
 const FADE_START = 0.55;
 const BASE_OPACITY = 0.62;
@@ -48,7 +54,7 @@ function ClusterLabel({ text, anchor }: ClusterLabelProps) {
 
   const position: [number, number, number] = [
     ax + dirX * OUTWARD_OFFSET,
-    ay + 5.5,
+    ay + 6.5,
     az + dirZ * OUTWARD_OFFSET,
   ];
 

@@ -221,7 +221,12 @@ export async function connectGraph(studentId: string): Promise<ConnectResult> {
   edges = edgesRepo.getAll(studentId);
   const remaining = findComponents(nodes, edges);
 
-  if (remaining.length > 1) {
+  // Only chain the leftovers when the model gave us nothing usable. Its links
+  // are chosen for real subject affinity; the fallback picks by graph structure
+  // alone and will happily join "Real Numbers" to "Cell Structure", which is a
+  // line the student cannot learn anything from. A couple of honest islands beat
+  // a fully-connected graph full of invented relationships.
+  if (remaining.length > 1 && meaningful === 0) {
     const byId = new Map(nodes.map((n) => [n.id, n]));
     // Bridge from each island's most-connected node — its hub — so the join
     // lands somewhere central rather than on a random leaf.

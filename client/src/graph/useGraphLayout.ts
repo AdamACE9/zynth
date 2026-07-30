@@ -27,10 +27,11 @@ interface SimLink {
 
 /**
  * Gap between adjacent cluster centres, in world units. A cluster of 6-8 nodes
- * settles at roughly 6 units across, so this leaves a clear lane between
- * neighbours without stranding them.
+ * settles at roughly 6 units across, so this leaves a wide, unambiguous lane
+ * between neighbours — each subject should read as its own constellation with
+ * empty space around it, not as part of one continuous band.
  */
-const CLUSTER_SPACING = 15;
+const CLUSTER_SPACING = 26;
 
 /** Places each cluster's anchor evenly around a circle so constellations stay visually separate. */
 function computeClusterAnchors(clusters: string[]): PositionMap {
@@ -170,7 +171,28 @@ function computeLayout(nodes: Node[], edges: Edge[]): GraphLayout {
   const positions: PositionMap = new Map();
   simNodes.forEach((n) => positions.set(n.id, [n.x, n.y, n.z]));
 
-  return { positions, clusterAnchors: anchors };
+  // Label positions are the CENTROID of each cluster's settled nodes, not the
+  // ring anchor they were seeded from. The anchor is only a force target: charge
+  // repulsion and cross-subject links pull a constellation several units off it,
+  // so labelling the anchor put the name in empty space near the ring while its
+  // nodes sat somewhere else — which is why the names read as "a circle" rather
+  // than as captions on their own constellations.
+  const centroids: PositionMap = new Map();
+  for (const cluster of clusters) {
+    const members = simNodes.filter((n) => n.cluster === cluster);
+    if (!members.length) {
+      const anchor = anchors.get(cluster);
+      if (anchor) centroids.set(cluster, anchor);
+      continue;
+    }
+    const sum = members.reduce(
+      (acc, n) => [acc[0] + n.x, acc[1] + n.y, acc[2] + n.z] as [number, number, number],
+      [0, 0, 0] as [number, number, number],
+    );
+    centroids.set(cluster, [sum[0] / members.length, sum[1] / members.length, sum[2] / members.length]);
+  }
+
+  return { positions, clusterAnchors: centroids };
 }
 
 /**
