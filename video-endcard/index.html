@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+
+    <!--
+      Zynth end card — HyperFrames composition.
+
+      Translated from the Remotion source in ../video/src via the
+      remotion-to-hyperframes mapping:
+        useCurrentFrame + interpolate  -> GSAP tweens on one paused timeline
+        spring({damping:200})          -> power3.out (heavily damped, no
+                                          overshoot — which is also the app's
+                                          motion rule: travel and settle)
+        @remotion/google-fonts         -> <link> tags below
+        AbsoluteFill                   -> position:absolute; inset:0
+        frames @30fps                  -> seconds (frame / 30)
+
+      Every colour, gradient and glow is copied verbatim from
+      client/src/index.css so the card reads as the last frame of the product
+      rather than a title slide made separately.
+    -->
+
+    <!-- Keep this <link>. The compiler reads it to know WHICH families to
+         fetch, then caches them and injects deterministic @font-face rules, so
+         the render itself makes no network call. Removing it (as the
+         google_fonts_import lint hint suggests) drops Space Grotesk out of the
+         resolved set entirely and the card falls back to a generic sans —
+         which is a hard error, not a warning. The advisory only applies to
+         projects whose fonts are bundled locally. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 1920px; height: 1080px; overflow: hidden;
+        background: #030308;
+      }
+
+      /* --- Zynth design tokens, verbatim from client/src/index.css --------- */
+      :root {
+        --bg-void: #030308;
+        --bg-deep: #06070f;
+        --text-primary: #f4f6ff;
+        --text-secondary: rgba(240, 243, 253, 0.80);
+        --text-muted: rgba(240, 243, 253, 0.58);
+        --accent-cyan: #52e5e8;
+        --accent-violet: #9b7bff;
+      }
+
+      .fill { position: absolute; inset: 0; }
+
+      /* The app's body background: three nebula washes over near-black. */
+      .nebula {
+        background:
+          radial-gradient(ellipse 80% 60% at 18% 12%, rgba(90, 74, 255, 0.22), transparent 60%),
+          radial-gradient(ellipse 70% 55% at 88% 82%, rgba(24, 200, 205, 0.14), transparent 62%),
+          radial-gradient(ellipse 90% 70% at 55% 100%, rgba(200, 60, 190, 0.06), transparent 65%),
+          radial-gradient(ellipse 100% 100% at 50% 50%, var(--bg-deep) 0%, var(--bg-void) 70%, #010104 100%);
+      }
+
+      /* Film grain — identical base64 fractal-noise SVG to body::before. */
+      .grain {
+        opacity: 0.035;
+        mix-blend-mode: overlay;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      }
+
+      /* Vignette — same recipe as #root::after. */
+      .vignette {
+        background: radial-gradient(ellipse 70% 70% at 50% 50%, transparent 55%, rgba(2,2,6,0.5) 100%);
+      }
+
+      .stage {
+        display: flex; align-items: center; justify-content: center;
+        gap: 110px;
+      }
+
+      .col { display: flex; flex-direction: column; max-width: 900px; }
+
+      /* CSS holds the FROM state of every animated property — the timeline
+         tweens toward the settled state. */
+      #wordmark-glow, #tagline, #rule, #links, #mark {
+        opacity: 0;
+        transform: translateY(24px);
+        filter: blur(6px);
+      }
+
+      #wordmark {
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 148px; font-weight: 700;
+        letter-spacing: -0.03em; line-height: 1;
+        background-image: linear-gradient(92deg, var(--accent-cyan), var(--accent-violet));
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent;
+        width: fit-content;
+      }
+
+      /* The glow lives on a wrapper, not the gradient text itself: a
+         drop-shadow applied directly to a background-clip:text element renders
+         as a faint rectangular smudge behind the glyphs. */
+      #wordmark-glow { filter: drop-shadow(0 0 42px rgba(155,123,255,0.30)); }
+
+      #tagline {
+        margin-top: 22px;
+        font-family: "Space Grotesk", sans-serif;
+        font-size: 40px; font-weight: 500;
+        line-height: 1.28; letter-spacing: -0.01em;
+        color: var(--text-primary);
+      }
+
+      #rule {
+        margin-top: 34px;
+        display: flex; align-items: center; gap: 16px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 23px; letter-spacing: 0.06em;
+        color: var(--text-secondary);
+      }
+      .swatch { display: flex; align-items: center; gap: 10px; }
+      .dot { width: 15px; height: 15px; border-radius: 999px; }
+      .arrow { color: var(--text-muted); font-size: 21px; }
+
+      #links {
+        margin-top: 48px;
+        display: flex; align-items: center; gap: 22px;
+        font-family: "IBM Plex Mono", monospace;
+        font-size: 25px; letter-spacing: 0.04em;
+        color: var(--text-secondary);
+      }
+      .sep { color: var(--text-muted); }
+      .cyan { color: var(--accent-cyan); }
+    </style>
+  </head>
+
+  <body>
+    <div
+      id="root"
+      data-composition-id="zynth-endcard"
+      data-start="0"
+      data-duration="8"
+      data-fps="30"
+      data-width="1920"
+      data-height="1080"
+    >
+      <div class="fill nebula"></div>
+      <div class="fill grain"></div>
+      <div class="fill vignette"></div>
+
+      <div
+        id="card"
+        class="clip fill stage"
+        data-start="0"
+        data-duration="8"
+        data-track-index="0"
+      >
+        <!-- The constellation. One hero node cycles red -> amber -> green
+             across the card: the product's whole thesis playing once, silently,
+             on the last frame a judge sees. Geometry mirrors
+             graph/NodeMesh.tsx — an emissive core plus an additive halo at
+             2.7x the core radius. -->
+        <svg id="mark" width="520" height="430" viewBox="0 0 420 350" style="overflow: visible">
+          <defs>
+            <radialGradient id="halo-hero">
+              <stop id="halo-hero-0" offset="0%" stop-color="#ff3b5c" stop-opacity="0.55" />
+              <stop id="halo-hero-1" offset="45%" stop-color="#ff3b5c" stop-opacity="0.16" />
+              <stop id="halo-hero-2" offset="100%" stop-color="#ff3b5c" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient id="halo-green">
+              <stop offset="0%" stop-color="#28e0a0" stop-opacity="0.5" />
+              <stop offset="45%" stop-color="#28e0a0" stop-opacity="0.14" />
+              <stop offset="100%" stop-color="#28e0a0" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient id="halo-red">
+              <stop offset="0%" stop-color="#ff3b5c" stop-opacity="0.5" />
+              <stop offset="45%" stop-color="#ff3b5c" stop-opacity="0.14" />
+              <stop offset="100%" stop-color="#ff3b5c" stop-opacity="0" />
+            </radialGradient>
+            <radialGradient id="halo-amber">
+              <stop offset="0%" stop-color="#ffb020" stop-opacity="0.5" />
+              <stop offset="45%" stop-color="#ffb020" stop-opacity="0.14" />
+              <stop offset="100%" stop-color="#ffb020" stop-opacity="0" />
+            </radialGradient>
+          </defs>
+
+          <!-- Edges. The hero's own edges take its colour so the transition
+               propagates outward instead of staying trapped in one dot. -->
+          <g stroke-opacity="0.2" stroke="#9b7bff" stroke-width="1.1">
+            <line x1="352" y1="196" x2="320" y2="300" />
+            <line x1="178" y1="268" x2="320" y2="300" />
+            <line x1="148" y1="96"  x2="70"  y2="208" />
+          </g>
+          <g class="hero-edge" stroke="#ff3b5c" stroke-opacity="0.42" stroke-width="1.6">
+            <line x1="148" y1="96"  x2="226" y2="158" />
+            <line x1="292" y1="42"  x2="226" y2="158" />
+            <line x1="226" y1="158" x2="70"  y2="208" />
+            <line x1="226" y1="158" x2="352" y2="196" />
+            <line x1="226" y1="158" x2="178" y2="268" />
+          </g>
+
+          <!-- Static nodes: core + halo + a white inner highlight. -->
+          <g><circle cx="148" cy="96"  r="18.9" fill="url(#halo-green)" /><circle cx="148" cy="96"  r="7"   fill="#28e0a0" /><circle cx="148" cy="96"  r="7"   fill="#fff" fill-opacity="0.28" /></g>
+          <g><circle cx="292" cy="42"  r="14.9" fill="url(#halo-red)"   /><circle cx="292" cy="42"  r="5.5" fill="#ff3b5c" /><circle cx="292" cy="42"  r="5.5" fill="#fff" fill-opacity="0.28" /></g>
+          <g><circle cx="70"  cy="208" r="16.2" fill="url(#halo-amber)" /><circle cx="70"  cy="208" r="6"   fill="#ffb020" /><circle cx="70"  cy="208" r="6"   fill="#fff" fill-opacity="0.28" /></g>
+          <g><circle cx="352" cy="196" r="17.6" fill="url(#halo-green)" /><circle cx="352" cy="196" r="6.5" fill="#28e0a0" /><circle cx="352" cy="196" r="6.5" fill="#fff" fill-opacity="0.28" /></g>
+          <g><circle cx="178" cy="268" r="13.5" fill="url(#halo-red)"   /><circle cx="178" cy="268" r="5"   fill="#ff3b5c" /><circle cx="178" cy="268" r="5"   fill="#fff" fill-opacity="0.28" /></g>
+          <g><circle cx="320" cy="300" r="16.2" fill="url(#halo-green)" /><circle cx="320" cy="300" r="6"   fill="#28e0a0" /><circle cx="320" cy="300" r="6"   fill="#fff" fill-opacity="0.28" /></g>
+
+          <!-- The hero node -->
+          <g>
+            <circle cx="226" cy="158" r="29.7" fill="url(#halo-hero)" />
+            <circle id="hero-core" cx="226" cy="158" r="11" fill="#ff3b5c" />
+            <circle cx="226" cy="158" r="11" fill="#fff" fill-opacity="0.28" />
+          </g>
+        </svg>
+
+        <div class="col">
+          <div id="wordmark-glow"><div id="wordmark">Zynth</div></div>
+          <div id="tagline">The truth about what you actually know.</div>
+
+          <div id="rule">
+            <span class="swatch"><span class="dot" style="background:#ff3b5c; box-shadow:0 0 16px #ff3b5c, 0 0 3px #ff3b5c"></span>UNTOUCHED</span>
+            <span class="arrow">&rarr;</span>
+            <span class="swatch"><span class="dot" style="background:#ffb020; box-shadow:0 0 16px #ffb020, 0 0 3px #ffb020"></span>ENGAGED</span>
+            <span class="arrow">&rarr;</span>
+            <span class="swatch"><span class="dot" style="background:#28e0a0; box-shadow:0 0 16px #28e0a0, 0 0 3px #28e0a0"></span>PROVEN</span>
+          </div>
+
+          <div id="links">
+            <span class="cyan">zynth-delta.vercel.app</span>
+            <span class="sep">&middot;</span>
+            <span>github.com/AdamACE9/zynth</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // One paused timeline, registered on window.__timelines — HyperFrames
+      // seeks it per frame, so every value must be a pure function of time.
+      const tl = gsap.timeline({ paused: true });
+
+      // Entrance recipe, straight from the app's motion tokens: opacity 0->1,
+      // 24px travel, 6px unblur. power3.out because the Remotion source used a
+      // spring with damping:200 — heavily damped, no overshoot. Nothing in this
+      // product bounces; it diagnoses.
+      const rise = (target, at) =>
+        tl.to(target, {
+          opacity: 1, y: 0, filter: "blur(0px)",
+          duration: 0.75, ease: "power3.out",
+        }, at);
+
+      rise("#mark", 0.13);
+      rise("#wordmark-glow", 0.33);
+      rise("#tagline", 0.87);
+      rise("#rule", 1.47);
+      rise("#links", 2.0);
+
+      // The card holds, then fades. A hard cut to black at the end of a
+      // submission video reads as a truncated file.
+      tl.fromTo("#card", { opacity: 0 }, { opacity: 1, duration: 0.47, ease: "none" }, 0);
+      tl.to("#card", { opacity: 0, duration: 0.67, ease: "none" }, 7.27);
+
+      // --- The rule, playing once -------------------------------------------
+      // red -> amber -> green, with a real settle at each state. Crossfades
+      // rather than hard swaps: at 30fps an instant colour change reads as a
+      // glitch, a blend reads as a state resolving. The hero's halo gradient
+      // stops and its five edges travel with it.
+      const toColor = (color, at) => {
+        tl.to("#hero-core", { attr: { fill: color }, duration: 0.67, ease: "none" }, at);
+        ["#halo-hero-0", "#halo-hero-1", "#halo-hero-2"].forEach((stop) =>
+          tl.to(stop, { attr: { "stop-color": color }, duration: 0.67, ease: "none" }, at),
+        );
+        tl.to(".hero-edge line", { attr: { stroke: color }, duration: 0.67, ease: "none" }, at);
+      };
+      toColor("#ffb020", 1.83); // engaged — frame 55 in the Remotion source
+      toColor("#28e0a0", 4.17); // proven  — frame 125
+
+      // A single slow breath so the mark is alive without competing with the
+      // wordmark beside it.
+      tl.to("#mark", {
+        scale: 1.022, duration: 4, ease: "sine.inOut",
+        yoyo: true, repeat: 1, transformOrigin: "50% 50%",
+      }, 0);
+
+      window.__timelines = window.__timelines || {};
+      window.__timelines["zynth-endcard"] = tl;
+    </script>
+  </body>
+</html>

@@ -48,3 +48,10 @@ client/.vite/
 
 # Claude Code machine-local permission cache — not shared
 .claude/settings.local.json
+
+# Vendored agent skill packs (npx skills add) — third-party, reinstallable,
+# and three identical copies of the same 742 files. Not ours to version.
+.agents/
+.claude/skills/
+agent/
+skills-lock.json
