@@ -32,7 +32,7 @@ Every concept in your syllabus is a node in one 3D graph. Its colour reflects
 | 🟢 | **Green** | You **passed a quiz**. The only route to green. |
 
 ```
-red   --[engaged_at set via Intuition or Explain]-->  amber
+red   --[engaged_at set via Intuition or Explain]-->  amber   (then Explain teaches)
 amber --[quiz passed, score >= 70]-->                green
 green --[failed retest]-->                           amber
 ```
@@ -54,7 +54,7 @@ rejected; every legal one passed.
 | **Intuition** | One slider, one visual, one prediction you have to commit to before the answer is shown. Gemini designs the visual per concept; a real expression parser renders it. About forty words of reading. Moves the node red→amber. |
 | **Quiz** | Questions generated for the exact concept you're on. MCQ graded exactly, free-response graded by Groq. **The only path to green.** |
 | **Autopsy Board** | Paste your wrong answers. It finds the single misconception underneath *all* of them and **draws new edges on your graph** between the concepts that keep failing together. |
-| **Explain** | A calm 1:1 tutor that already holds your file — this concept, your mistakes, your trend. You never brief it first. |
+| **Explain** | **Step 2 — where the teaching happens.** Opens with a full lesson (mechanism, worked example, the specific misconception, a self-check) instead of waiting to be asked, then takes questions. Already holds your file. Scoped by the same objective the Quiz is generated from, so nothing on the quiz went untaught. |
 | **Live Co-Pilot** | Watches a quiz in progress and interrupts, unprompted, the moment a concept collapses — with a *diagnosis*, not a red cross. Deliberately hard to trigger (see below). |
 | **Study Plan + Ghost Path** | A prerequisite-respecting route toward your goal that **re-plans itself** whenever mastery changes. The Ghost Path draws planned-vs-actual progress across the graph, GPS-style. |
 | **Exam Simulator** | A timed paper where the agent shows its own reasoning live, then maps every lost mark back to a specific node. |

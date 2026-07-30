@@ -148,16 +148,23 @@ chains. Everything is red. That is the honest starting position, and it looks co
 which is the point.
 
 **You click a red node** — say, *Related Rates*. You get a real screen, not a bubble
-floating over the graph. Two ways in:
+floating over the graph, and a three-step loop:
 
-- **Intuition**, where you get one thing to drag and one question to answer. Move the
-  slider and the relationship reshapes in front of you. Then it asks you to predict what
-  happens next — and you have to commit before anything is revealed. Get it wrong and your
-  predicted curve is drawn against reality, so you see exactly where your model of the
-  concept diverged from how it actually behaves.
-- **Explain**, a calm 1:1 tutor that *already holds your file* — this node, your mistake
-  history on it, your mastery trend. You never brief it first. This is the deliberate
-  fallback for when the flashy feature doesn't land for a given student.
+**Step 1 — Intuition.** You get one thing to drag and one question to answer. Move the
+slider and the relationship reshapes in front of you. Then it asks you to predict what
+happens next — and you have to commit before anything is revealed. Get it wrong and your
+predicted curve is drawn against reality, so you see exactly where your model of the
+concept diverged from how it actually behaves.
+
+**Step 2 — Explain.** Intuition is deliberately tiny, and intuition is not knowledge. So
+the tutor teaches properly before you're tested: what the concept is, the mechanism with a
+worked example in real numbers, the specific mistake people make here, and how to check
+yourself. It already holds your file — this node, your mistake history, your trend — so you
+never brief it first. Crucially it is scoped by the *same objective the quiz is generated
+from*, which is what makes "everything the quiz can ask was taught here" true by
+construction rather than by luck. Then you can ask it anything.
+
+**Step 3 — Quiz.** The only route to green.
 
 Either way, the node moves **red → amber**. Zynth now believes you understand it. It does
 not yet believe you can prove it, and it says so.
@@ -236,8 +243,14 @@ between the concepts that keep failing together. The graph's topology changes ba
 your personal failure modes. No other study tool restructures its own map this way.
 
 #### Explain
-A context-aware 1:1 tutor. Already knows the node, your mistakes on it, and your trend.
-Calmer and more utilitarian than Intuition by design — it's the safety net, not the star.
+**Step 2 of the loop, and where the actual teaching happens.** It opens with a full lesson
+rather than waiting to be asked — what the concept is, the mechanism with a worked example,
+the misconception people hit, and a self-check — then takes questions. Already knows the
+node, your mistakes on it and your trend, so you never restate your situation.
+
+It is scoped by the same objective the Quiz is generated from. That shared objective is the
+contract that stops the loop being unfair: Intuition builds the intuition, Explain teaches
+the content, and only then does the Quiz examine it.
 
 #### Live Co-Pilot
 Watches a quiz in progress. Maintains a live mastery heatmap and injects an **unprompted**

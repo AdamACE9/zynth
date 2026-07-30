@@ -185,7 +185,7 @@ const FAQS: [string, string][] = [
   ],
   [
     'Which models run it?',
-    'Google Gemini designs the Intuition visuals, writes the questions, clusters the Autopsy findings and runs the tutor. Groq grades written answers.',
+    'Google Gemini designs the Intuition visuals, teaches the lesson, writes the questions and clusters the Autopsy findings — all three from one shared objective, so what you are taught and what you are asked cannot drift apart. Groq grades written answers.',
   ],
   ['Who built this?', 'Adam Ahmed, solo, at thirteen — as a hackathon build. The whole thing is open source.'],
 ];
@@ -237,7 +237,7 @@ const MODULES: {
 
 const STATES: [string, string, string][] = [
   ['red', 'Red', 'Untouched, or just failed a retest. Re-reading the chapter nine times does not move it.'],
-  ['amber', 'Amber', 'Engaged. Unproven. You built the intuition or sat with the tutor. Zynth records that you met the idea — not that you can use it.'],
+  ['amber', 'Amber', 'Engaged. Unproven. You built the intuition and the tutor taught it. Zynth records that you met the idea — not that you can use it.'],
   ['green', 'Green', 'Proven. You passed a quiz on it at seventy per cent or better. This is the only route here.'],
 ];
 
@@ -428,9 +428,16 @@ export function Landing({ onEnter, onStartTour }: LandingProps) {
               </p>
             </div>
 
+            <p className="t-body" style={{ marginTop: 30, maxWidth: '62ch' }} data-reveal>
+              Then the tutor teaches it properly — the mechanism, a worked example in real
+              numbers, the mistake people make here, and how to check yourself. It is scoped by
+              the same objective the quiz is built from, so nothing you are asked went untaught.
+            </p>
+
             <p className="duo" style={{ marginTop: 22, maxWidth: '62ch' }} data-reveal>
-              <b>Understanding moves the node to amber, never to green.</b> Watching the arc land
-              where you did not expect is still not evidence that you can do it.
+              <b>Both of those move the node to amber, never to green.</b> Watching the arc land
+              where you did not expect, and being taught well, are still not evidence that you can
+              do it.
             </p>
           </div>
         </section>
