@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Zynth — deck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+/* Design tokens copied verbatim from client/src/index.css so the deck and the
+   product are visibly the same object. */
+:root{
+  --bg-void:#030308; --bg-deep:#06070f;
+  --text-primary:#f4f6ff; --text-secondary:rgba(240,243,253,.80); --text-muted:rgba(240,243,253,.58);
+  --red:#ff3b5c; --amber:#ffb020; --green:#28e0a0;
+  --cyan:#52e5e8; --violet:#9b7bff;
+  --border:rgba(255,255,255,.08);
+  --f-display:'Space Grotesk',system-ui,sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+
+/* 16:9 widescreen deck pages. */
+@page{ size:13.333in 7.5in; margin:0 }
+html,body{ background:var(--bg-void); color:var(--text-primary); font-family:var(--f-display); }
+
+.slide{
+  position:relative; width:13.333in; height:7.5in; overflow:hidden;
+  padding:0.85in 1.05in; display:flex; flex-direction:column; justify-content:center;
+  page-break-after:always; break-after:page;
+  /* Without this Chrome drops every background when printing. */
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  background:
+    radial-gradient(ellipse 80% 60% at 15% 8%, rgba(90,74,255,.20), transparent 60%),
+    radial-gradient(ellipse 70% 55% at 90% 88%, rgba(24,200,205,.12), transparent 62%),
+    radial-gradient(ellipse 100% 100% at 50% 50%, var(--bg-deep) 0%, var(--bg-void) 72%, #010104 100%);
+}
+.slide:last-child{ page-break-after:auto; break-after:auto }
+
+/* A hairline top rule carrying the three states — the deck's spine. */
+.slide::before{
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+  background:linear-gradient(90deg,var(--red) 0%,var(--red) 33%,var(--amber) 33%,var(--amber) 66%,var(--green) 66%,var(--green) 100%);
+  opacity:.85;
+}
+
+.eyebrow{ font-family:var(--f-mono); font-size:12.5pt; letter-spacing:.22em; text-transform:uppercase; color:var(--text-muted); margin-bottom:.34in }
+h1{ font-size:58pt; font-weight:700; letter-spacing:-.03em; line-height:1.02 }
+h2{ font-size:34pt; font-weight:600; letter-spacing:-.02em; line-height:1.14; max-width:9.6in }
+.lede{ font-size:16pt; font-weight:500; color:var(--text-secondary); line-height:1.5; max-width:8.2in; margin-top:.3in }
+.grad{ background:linear-gradient(96deg,var(--cyan) 2%,var(--violet) 72%); -webkit-background-clip:text; background-clip:text; color:transparent }
+.mono{ font-family:var(--f-mono) }
+.num{ position:absolute; bottom:.5in; right:1.05in; font-family:var(--f-mono); font-size:10.5pt; color:var(--text-muted) }
+.foot{ position:absolute; bottom:.5in; left:1.05in; font-family:var(--f-mono); font-size:10.5pt; color:var(--text-muted) }
+
+/* --- shared pieces ------------------------------------------------------ */
+.states{ display:flex; gap:.42in; margin-top:.5in }
+.state{ flex:1; border:1px solid var(--border); border-radius:14px; padding:.34in .32in; background:rgba(255,255,255,.022) }
+.state .dot{ width:13px; height:13px; border-radius:99px; display:inline-block; margin-right:.12in; vertical-align:middle }
+.state .name{ font-family:var(--f-mono); font-size:12pt; letter-spacing:.14em; text-transform:uppercase; vertical-align:middle }
+.state p{ font-size:12.5pt; color:var(--text-secondary); line-height:1.5; margin-top:.16in }
+
+.rows{ margin-top:.46in; display:flex; flex-direction:column; gap:.02in }
+.row{ display:flex; align-items:baseline; gap:.34in; padding:.22in 0; border-bottom:1px solid var(--border) }
+.row:last-child{ border-bottom:0 }
+.row .k{ font-family:var(--f-mono); font-size:13pt; color:var(--cyan); width:3.5in; flex-shrink:0 }
+.row .v{ font-size:14pt; color:var(--text-secondary); line-height:1.45 }
+
+.steps{ display:flex; gap:.3in; margin-top:.5in; align-items:stretch }
+.step{ flex:1; border:1px solid var(--border); border-radius:14px; padding:.34in .3in; background:rgba(255,255,255,.022) }
+.step .n{ font-family:var(--f-mono); font-size:11pt; color:var(--text-muted); letter-spacing:.16em }
+.step h3{ font-size:19pt; font-weight:600; margin-top:.14in; letter-spacing:-.01em }
+.step p{ font-size:12.5pt; color:var(--text-secondary); line-height:1.5; margin-top:.14in }
+.arrow{ align-self:center; color:var(--text-muted); font-size:19pt }
+
+.big{ font-size:26pt; font-weight:600; line-height:1.32; letter-spacing:-.015em; max-width:9.2in; margin-top:.4in }
+.big em{ font-style:normal; color:var(--cyan) }
+.note{ margin-top:.42in; font-size:13pt; color:var(--text-muted); line-height:1.5; max-width:8in }
+
+.chip{ display:inline-block; font-family:var(--f-mono); font-size:11.5pt; padding:.1in .22in; border:1px solid var(--border); border-radius:99px; color:var(--text-secondary); margin:.07in .07in 0 0 }
+</style>
+</head>
+<body>
+
+<!-- 1 ─ title -->
+<section class="slide">
+  <div class="eyebrow">Student Learning OS</div>
+  <h1 class="grad">Zynth</h1>
+  <p class="lede">Most study apps show you content.<br/>Zynth shows you the truth about what you actually know — and rebuilds your plan around it, live.</p>
+  <div class="states" style="margin-top:.62in">
+    <div class="state"><span class="dot" style="background:var(--red)"></span><span class="name">Untouched</span></div>
+    <div class="state"><span class="dot" style="background:var(--amber)"></span><span class="name">Engaged</span></div>
+    <div class="state"><span class="dot" style="background:var(--green)"></span><span class="name">Proven</span></div>
+  </div>
+  <div class="foot">Built solo in four days · Adam Ahmed, 13</div>
+  <div class="num">01</div>
+</section>
+
+<!-- 2 ─ the problem -->
+<section class="slide">
+  <div class="eyebrow">The problem</div>
+  <h2>Students confuse having studied something<br/>with actually knowing it.</h2>
+  <div class="rows">
+    <div class="row"><span class="k">"I studied X"</span><span class="v">You were exposed to it. Nothing more.</span></div>
+    <div class="row"><span class="k">"I understand X"</span><span class="v">You feel fluent. Feelings are unreliable here.</span></div>
+    <div class="row"><span class="k">"Here is proof"</span><span class="v">Something external tested you, and you passed.</span></div>
+  </div>
+  <p class="note">Re-reading feels smoother every pass, and the smoothness gets mistaken for understanding. It is the most common way students lose a term.</p>
+  <div class="num">02</div>
+</section>
+
+<!-- 3 ─ the gap -->
+<section class="slide">
+  <div class="eyebrow">Why EdTech doesn't fix it</div>
+  <h2>Everything either teaches, or tests.<br/>Almost nothing diagnoses.</h2>
+  <div class="steps">
+    <div class="step"><div class="n">CONTENT-FIRST</div><h3>Tools that teach</h3><p>Will happily explain a concept for the tenth time. No idea whether it landed, no memory of the last nine attempts.</p></div>
+    <div class="step"><div class="n">QUIZ-FIRST</div><h3>Tools that test</h3><p>Give you a score. Don't diagnose <em>why</em> you got it wrong, and don't change what you do tomorrow.</p></div>
+  </div>
+  <p class="note">Zynth exists in the gap: diagnose continuously, and re-plan continuously.</p>
+  <div class="num">03</div>
+</section>
+
+<!-- 4 ─ the insight -->
+<section class="slide">
+  <div class="eyebrow">The insight</div>
+  <h2>Colour is evidence, not effort.</h2>
+  <div class="states">
+    <div class="state">
+      <span class="dot" style="background:var(--red)"></span><span class="name">Red</span>
+      <p>Untouched. Re-reading the chapter nine times does not move it.</p>
+    </div>
+    <div class="state">
+      <span class="dot" style="background:var(--amber)"></span><span class="name">Amber</span>
+      <p>You engaged with it. Zynth believes you understand — but has no evidence.</p>
+    </div>
+    <div class="state">
+      <span class="dot" style="background:var(--green)"></span><span class="name">Green</span>
+      <p>You passed a quiz. The only route here.</p>
+    </div>
+  </div>
+  <p class="note">Amber is the state most products don't have. It's the honest name for "you did the work, but nobody checked."</p>
+  <div class="num">04</div>
+</section>
+
+<!-- 5 ─ the rule -->
+<section class="slide">
+  <div class="eyebrow">The core mechanic</div>
+  <h2>Three legal transitions.<br/>There is no red&nbsp;→&nbsp;green.</h2>
+  <div class="big mono" style="font-size:18pt; line-height:2.1; letter-spacing:0">
+    red&nbsp;&nbsp;<span style="color:var(--text-muted)">──engage──▶</span>&nbsp;&nbsp;<span style="color:var(--amber)">amber</span><br/>
+    <span style="color:var(--amber)">amber</span>&nbsp;&nbsp;<span style="color:var(--text-muted)">──quiz passed ≥70──▶</span>&nbsp;&nbsp;<span style="color:var(--green)">green</span><br/>
+    <span style="color:var(--green)">green</span>&nbsp;&nbsp;<span style="color:var(--text-muted)">──failed retest──▶</span>&nbsp;&nbsp;<span style="color:var(--amber)">amber</span>
+  </div>
+  <p class="note">Enforced twice: one service owns every status write, and a SQLite trigger rejects illegal transitions at the storage engine. Even a raw <span class="mono">UPDATE</span> can't cheat it. That makes it an invariant, not validation.</p>
+  <div class="num">05</div>
+</section>
+
+<!-- 6 ─ the graph -->
+<section class="slide">
+  <div class="eyebrow">The product</div>
+  <h2>Your whole syllabus as one living 3D map.</h2>
+  <p class="lede">Every concept is a node. Every module in the product reads from this graph and writes back to it — so the map is the app's state, not a picture of it.</p>
+  <div style="margin-top:.5in">
+    <span class="chip">Clustered by subject</span>
+    <span class="chip">Prerequisite edges</span>
+    <span class="chip">Live over WebSockets</span>
+    <span class="chip">Click a node → a real screen</span>
+    <span class="chip">Multiple graphs as tabs</span>
+  </div>
+  <div class="num">06</div>
+</section>
+
+<!-- 7 ─ the loop -->
+<section class="slide">
+  <div class="eyebrow">The loop</div>
+  <h2>Three steps from stuck to proven.</h2>
+  <div class="steps">
+    <div class="step"><div class="n">STEP 01</div><h3>Intuition</h3><p>One slider to drag, then a prediction you must commit to before anything is revealed. Guess wrong and your curve is drawn against reality.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">STEP 02</div><h3>Explain</h3><p>A tutor that already holds your file, and teaches the exact objective the quiz is built from.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">STEP 03</div><h3>Quiz</h3><p>The only route to green. Free-response graded by a different model than the one that wrote it.</p></div>
+  </div>
+  <p class="note">Everything the quiz can ask was taught on the previous screen — true by construction, not by luck.</p>
+  <div class="num">07</div>
+</section>
+
+<!-- 8 ─ autopsy -->
+<section class="slide">
+  <div class="eyebrow">The differentiator</div>
+  <h2>It rewires your map<br/>around how <em style="font-style:normal;color:var(--cyan)">you</em> fail.</h2>
+  <p class="lede">Paste in a term's worth of wrong answers. The Autopsy Board finds the single misconception underneath all of them — then draws new edges between the concepts that keep failing together.</p>
+  <p class="big" style="font-size:20pt; color:var(--text-primary)">Not <span style="color:var(--text-muted)">"you're bad at related rates."</span><br/>Instead: <em>you drop the negative when the inner function is decreasing.</em></p>
+  <div class="num">08</div>
+</section>
+
+<!-- 9 ─ green decays -->
+<section class="slide">
+  <div class="eyebrow">Why it stays honest</div>
+  <h2>Green decays.</h2>
+  <p class="lede">A proven concept that fails a retest drops straight back to amber. Zynth will withdraw a claim it made about you.</p>
+  <p class="big">Mastery isn't a badge you keep.<br/>It's a claim the graph <em>keeps re-checking</em>.</p>
+  <p class="note">No XP, no levels, no streaks-for-logging-in. The only streak counts nodes that stayed green <span style="color:var(--text-secondary)">through</span> retests.</p>
+  <div class="num">09</div>
+</section>
+
+<!-- 10 ─ close -->
+<section class="slide">
+  <div class="eyebrow">Under the hood</div>
+  <h2>AI generates and diagnoses.<br/>Deterministic code decides.</h2>
+  <div class="rows">
+    <div class="row"><span class="k">Gemini</span><span class="v">Visuals, quizzes, the tutor, mistake clustering, planning</span></div>
+    <div class="row"><span class="k">Groq · Llama 3.3 70B</span><span class="v">Grades free response — never marks its own homework</span></div>
+    <div class="row"><span class="k">No model can</span><span class="v">Move a node to green, order prerequisites, or summon a Co-Pilot card</span></div>
+  </div>
+  <p class="note" style="margin-top:.5in">React · Three.js · Node · SQLite (WAL) · Socket.io &nbsp;·&nbsp; <span style="color:var(--cyan)">zynth-delta.vercel.app</span> &nbsp;·&nbsp; github.com/AdamACE9/zynth</p>
+  <div class="num">10</div>
+</section>
+
+</body>
+</html>
