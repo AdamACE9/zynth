@@ -55,3 +55,8 @@ client/.vite/
 .claude/skills/
 agent/
 skills-lock.json
+
+# Markdown is working material — notes, scripts, run sheets, briefs.
+# Only the repo front door is tracked.
+*.md
+!README.md
