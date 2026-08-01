@@ -212,6 +212,8 @@ interface GraphStageProps {
 function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) {
   const [initialGraph, setInitialGraph] = useState<GraphPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  /** True once the fetch has run long enough to be a cold start rather than a slow network. */
+  const [slowLoad, setSlowLoad] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hintDismissed, setHintDismissed] = useState<boolean>(() => {
     try {
@@ -249,9 +251,17 @@ function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) 
       }
     };
 
+    // 4s is past any healthy response (the warm API answers in well under a
+    // second) but well inside a cold start, so this only ever fires when there
+    // is genuinely something to explain.
+    const slowTimer = window.setTimeout(() => {
+      if (!cancelled) setSlowLoad(true);
+    }, 4000);
+
     void attempt();
     return () => {
       cancelled = true;
+      clearTimeout(slowTimer);
       if (timer) clearTimeout(timer);
     };
   }, []);
@@ -304,7 +314,7 @@ function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <div className="glass-panel flex items-center gap-3 px-5 py-4">
+            <div className="glass-panel flex max-w-sm flex-col items-center gap-3 px-6 py-5 text-center">
               <motion.span
                 className="h-4 w-4 rounded-full border-2 border-transparent"
                 style={{ borderTopColor: 'var(--accent-cyan)', borderRightColor: 'var(--accent-cyan)' }}
@@ -314,6 +324,24 @@ function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) 
               <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 Building your knowledge graph…
               </span>
+              {/* After a few seconds, say WHY it is slow.
+                  The hosted API sleeps on its free tier and a cold start takes
+                  roughly 30-60 seconds. An unexplained spinner for that long
+                  reads as "this is broken" and the visitor closes the tab —
+                  which, for someone evaluating the project from a link, is the
+                  whole product lost to a hosting detail. Naming it converts an
+                  abandonment into a wait. */}
+              {slowLoad && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-xs leading-relaxed"
+                  style={{ color: 'var(--text-muted)' }}
+                >
+                  The API sleeps when idle on free hosting. Waking it takes about
+                  30&nbsp;seconds the first time — everything is fast after that.
+                </motion.span>
+              )}
             </div>
           </motion.div>
         )}
