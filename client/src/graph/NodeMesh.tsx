@@ -56,6 +56,35 @@ const FLASH_DURATION = 0.2; // seconds — single "case closed" spike, not a loo
 // Halo tuning — kept deliberately tight so 18 overlapping halos read as
 // individual glowing orbs, not one washed-out milky haze.
 const HALO_SCALE = 2.7;
+
+/**
+ * Coarse-pointer detection, evaluated once at module load.
+ *
+ * `(pointer: coarse)` is true for finger input and false for a mouse, which is
+ * exactly the distinction that matters here — a fingertip covers roughly 9mm of
+ * screen, a cursor covers one pixel.
+ */
+const IS_TOUCH =
+  typeof window !== 'undefined' &&
+  typeof window.matchMedia === 'function' &&
+  window.matchMedia('(pointer: coarse)').matches;
+
+/**
+ * How much bigger the *invisible* hit sphere is than the visible node.
+ *
+ * The click target used to be the rendered sphere itself, which on a phone is a
+ * handful of pixels across — the graph was effectively untappable. An invisible
+ * proxy keeps the visual language exactly as designed while giving fingers
+ * something to actually hit.
+ *
+ * 2.6x on touch lands the target near the ~44px minimum tap size at normal
+ * zoom. 1.35x on a mouse is a small forgiveness margin, deliberately kept under
+ * the halo so neighbouring targets don't overlap and steal each other's clicks.
+ */
+const HIT_SCALE = IS_TOUCH ? 2.6 : 1.35;
+
+/** Nodes are drawn slightly larger on phones so they read after downscaling. */
+const RADIUS_BOOST = IS_TOUCH ? 1.25 : 1;
 const HALO_OPACITY = 0.26;
 const HALO_PULSE_AMP = 0.05;
 
@@ -83,7 +112,7 @@ export function NodeMesh({ node, position, isSelected, onSelect }: NodeMeshProps
   const targetColor = useMemo(() => new THREE.Color(STATUS_COLORS[node.status]), [node.status]);
   const haloTexture = useMemo(() => getHaloTexture(), []);
   // Wider spread so mastery differences read clearly at a glance.
-  const baseRadius = 0.28 + (node.mastery_score / 100) * 0.55;
+  const baseRadius = (0.28 + (node.mastery_score / 100) * 0.55) * RADIUS_BOOST;
 
   useFrame((state, delta) => {
     const material = materialRef.current;
@@ -157,8 +186,14 @@ export function NodeMesh({ node, position, isSelected, onSelect }: NodeMeshProps
         </mesh>
       </Billboard>
 
+      {/* Invisible tap target, larger than the node it stands in for.
+          All interaction lives here so the visible sphere can stay exactly the
+          size the design wants while a finger still has something to hit. It is
+          `visible={false}`, which keeps it out of the render pass entirely but
+          still raycastable — the pointer events below fire normally. */}
       <mesh
-        ref={meshRef}
+        visible={false}
+        scale={baseRadius * HIT_SCALE}
         onClick={(e) => {
           e.stopPropagation();
           onSelect(node.id);
@@ -173,6 +208,12 @@ export function NodeMesh({ node, position, isSelected, onSelect }: NodeMeshProps
           document.body.style.cursor = 'auto';
         }}
       >
+        <sphereGeometry args={[1, 12, 12]} />
+      </mesh>
+
+      {/* The node itself. No handlers: the proxy above owns interaction, and
+          leaving them here too would double-fire and fight over stopPropagation. */}
+      <mesh ref={meshRef} raycast={() => null}>
         <sphereGeometry args={[1, 32, 32]} />
         <meshStandardMaterial
           ref={materialRef}

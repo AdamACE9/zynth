@@ -277,3 +277,35 @@ body[data-view='onboarding'] #root::after {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------------------------------------------------------------------- */
+/* Touch                                                                   */
+/* ---------------------------------------------------------------------- */
+
+/* The 3D canvas must own its gestures. Without this, mobile browsers claim
+   drags for page scroll and pinches for browser zoom, so OrbitControls only
+   ever sees a fraction of the gesture and the graph feels stuck. The app view
+   never scrolls anyway (see the height/overflow lock above), so nothing is
+   lost by taking them. */
+canvas {
+  touch-action: none;
+}
+
+/* Fingers are not cursors. Anything tappable gets a real target on touch
+   devices, and the tap-highlight rectangle is removed because it flashes a
+   grey box over the glass panels. */
+@media (pointer: coarse) {
+  button,
+  [role='button'],
+  a {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Chips and pills are laid out in rows and would break their line if forced
+     to 44px tall — they get horizontal padding instead. */
+  .glass-chip,
+  .ob-chip {
+    min-height: 40px;
+  }
+}
