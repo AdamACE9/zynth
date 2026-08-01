@@ -15,6 +15,9 @@ import { Autopsy } from './screens/Autopsy';
 import { StudyPlan } from './screens/StudyPlan';
 import { ExamSim } from './screens/ExamSim';
 import { TimeMachine } from './screens/TimeMachine';
+import { Flashcards } from './screens/Flashcards';
+import { DebateArena } from './screens/DebateArena';
+import { OfficeHours } from './screens/OfficeHours';
 import { Landing } from './site/Landing';
 import { Onboarding } from './onboarding/Onboarding';
 
@@ -25,7 +28,17 @@ interface GraphPayload {
 
 /** Which full-screen overlay (if any) is mounted on top of the ever-present graph. */
 type ActiveScreen = {
-  type: 'intuition' | 'quiz' | 'explain' | 'autopsy' | 'plan' | 'exam' | 'timemachine';
+  type:
+    | 'intuition'
+    | 'quiz'
+    | 'explain'
+    | 'autopsy'
+    | 'plan'
+    | 'exam'
+    | 'timemachine'
+    | 'flashcards'
+    | 'debate'
+    | 'officehours';
   nodeId: string | null;
 };
 
@@ -188,6 +201,9 @@ function GraphApp({ onRequestNewWorkspace }: GraphAppProps) {
         onOpenPlan={() => openScreen('plan', null)}
         onOpenExam={() => openScreen('exam', null)}
         onOpenTimeMachine={() => openScreen('timemachine', null)}
+        onOpenFlashcards={() => openScreen('flashcards', null)}
+        onOpenDebate={() => openScreen('debate', null)}
+        onOpenOfficeHours={() => openScreen('officehours', null)}
         onWorkspaceSwitched={handleWorkspaceSwitched}
         onCreateWorkspace={onRequestNewWorkspace}
       />
@@ -435,6 +451,9 @@ function GraphStage({ activeScreen, openScreen, closeScreen }: GraphStageProps) 
         {activeScreen?.type === 'plan' && <StudyPlan key="plan" onClose={closeScreen} />}
         {activeScreen?.type === 'exam' && <ExamSim key="exam" onClose={closeScreen} />}
         {activeScreen?.type === 'timemachine' && <TimeMachine key="timemachine" onClose={closeScreen} />}
+        {activeScreen?.type === 'flashcards' && <Flashcards key="flashcards" onClose={closeScreen} />}
+        {activeScreen?.type === 'debate' && <DebateArena key="debate" onClose={closeScreen} />}
+        {activeScreen?.type === 'officehours' && <OfficeHours key="officehours" onClose={closeScreen} />}
       </AnimatePresence>
     </>
   );

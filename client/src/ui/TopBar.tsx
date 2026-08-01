@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { Workspace } from '../lib/api';
 import { apiUrl } from '../lib/api';
 import { WorkspaceTabs } from './WorkspaceTabs';
@@ -15,6 +15,12 @@ interface TopBarProps {
   onOpenExam: () => void;
   /** Curriculum Time-Machine — the schedule against the syllabus. */
   onOpenTimeMachine: () => void;
+  /** Spaced-repetition Flashcards. */
+  onOpenFlashcards: () => void;
+  /** Debate Arena — argue a motion against an AI opponent. */
+  onOpenDebate: () => void;
+  /** Office Hours — queued worked-solution Q&A. */
+  onOpenOfficeHours: () => void;
   /** A different workspace was activated — the caller must refetch the graph. */
   onWorkspaceSwitched: (workspace: Workspace) => void;
   /** The tab strip's "+" — hands off to the newWorkspace onboarding flow. */
@@ -85,6 +91,64 @@ function ExamIcon() {
   );
 }
 
+/** Two stacked cards — spaced-repetition flashcards. */
+function FlashcardsIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
+      <rect x="3.6" y="7.4" width="14" height="10" rx="1.8" stroke="currentColor" strokeWidth="1.5" strokeOpacity="0.55" transform="rotate(-7 10.6 12.4)" />
+      <rect x="6.4" y="6.6" width="14" height="10" rx="1.8" stroke="currentColor" strokeWidth="1.6" />
+    </svg>
+  );
+}
+
+/** Two overlapping speech bubbles — arguing a motion back and forth. */
+function DebateIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
+      <path
+        d="M4 4.5h9a2 2 0 0 1 2 2v3.2a2 2 0 0 1-2 2H9.2L6 14.3v-2.6H4a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+        strokeOpacity="0.6"
+      />
+      <path
+        d="M11 11.3h9a2 2 0 0 1 2 2v3.2a2 2 0 0 1-2 2h-7.8L9 21.3v-2.8H11a2 2 0 0 1-2-2v-3.2a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** A queue ticket with a check — office hours, worked answers waiting on you. */
+function OfficeHoursIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
+      <circle cx="12" cy="12" r="8.3" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M9.6 9.6a2.4 2.4 0 1 1 3.2 2.26c-.83.32-1.2.8-1.2 1.64"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="11.7" cy="16.6" r="0.15" stroke="currentColor" strokeWidth="1.7" />
+    </svg>
+  );
+}
+
+/** Three dots — the overflow / "more" affordance. */
+function MoreIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
+      <circle cx="5" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="19" cy="12" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
+
 interface HealthResponse {
   ok?: boolean;
   stubMode?: boolean;
@@ -131,11 +195,40 @@ export function TopBar({
   onOpenPlan,
   onOpenExam,
   onOpenTimeMachine,
+  onOpenFlashcards,
+  onOpenDebate,
+  onOpenOfficeHours,
   onWorkspaceSwitched,
   onCreateWorkspace,
 }: TopBarProps) {
   const reduceMotion = useReducedMotion();
   const stubMode = useStubMode(connected);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  // Close the overflow menu on an outside click or Escape — it's a transient
+  // popover, not a "room" like the full-screen screens, so it manages its own
+  // dismissal rather than going through activeScreen/closeScreen in App.tsx.
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) setMoreOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [moreOpen]);
+
+  function pickMore(action: () => void) {
+    setMoreOpen(false);
+    action();
+  }
 
   // Connection is chrome state, not mastery — it must never borrow red/amber
   // /green. Live reads cyan (the app's own accent); offline just dims to the
@@ -242,6 +335,76 @@ export function TopBar({
               Autopsy
             </span>
           </button>
+
+          {/* Overflow — Flashcards / Debate Arena / Office Hours. A fifth
+              instrument-strip segment would be a sixth, seventh button on an
+              already-tight bar, so these three share one "More" entry and a
+              small popover instead. */}
+          <div ref={moreRef} className="zc-instrument-btn relative flex">
+            <button
+              type="button"
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={moreOpen}
+              aria-label="More rooms"
+              title="More rooms"
+              className={`btn-chip flex px-3 py-2 sm:px-3.5 ${FOCUS_RING}`}
+            >
+              <MoreIcon />
+              <span className="zc-mono" style={{ color: 'inherit' }}>
+                More
+              </span>
+            </button>
+
+            <AnimatePresence>
+              {moreOpen && (
+                <motion.div
+                  key="more-menu"
+                  role="menu"
+                  aria-label="More rooms"
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                  transition={{ duration: 0.14, ease: EASE_OUT }}
+                  className="glass-panel glass-panel-strong pointer-events-auto absolute right-0 top-[calc(100%+8px)] z-20 flex w-48 flex-col gap-0.5 p-1.5"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => pickMore(onOpenFlashcards)}
+                    className={`btn-chip flex items-center gap-2.5 rounded-lg px-3 py-2 ${FOCUS_RING}`}
+                  >
+                    <FlashcardsIcon />
+                    <span className="zc-mono" style={{ color: 'inherit' }}>
+                      Flashcards
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => pickMore(onOpenDebate)}
+                    className={`btn-chip flex items-center gap-2.5 rounded-lg px-3 py-2 ${FOCUS_RING}`}
+                  >
+                    <DebateIcon />
+                    <span className="zc-mono" style={{ color: 'inherit' }}>
+                      Debate Arena
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => pickMore(onOpenOfficeHours)}
+                    className={`btn-chip flex items-center gap-2.5 rounded-lg px-3 py-2 ${FOCUS_RING}`}
+                  >
+                    <OfficeHoursIcon />
+                    <span className="zc-mono" style={{ color: 'inherit' }}>
+                      Office Hours
+                    </span>
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
